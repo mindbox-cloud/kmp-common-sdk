@@ -15,4 +15,8 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MindboxCommonLibrary"
+
 include(":mindbox-common")
+include(":abmixer")
+
+project(":abmixer").projectDir = File(rootDir, "kmp-abmixer/abmixer/")

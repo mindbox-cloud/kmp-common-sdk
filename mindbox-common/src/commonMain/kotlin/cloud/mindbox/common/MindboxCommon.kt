@@ -1,7 +1,12 @@
 package cloud.mindbox.common
 
-interface Platform {
-    val name: String
-}
+import cloud.mindbox.mobile_sdk.abmixer.CustomerAbMixer
 
-expect fun getPlatform(): Platform
+public object MindboxCommon{
+
+    val version: String = "1.0.0"
+
+    private fun check() {
+        CustomerAbMixer.impl()
+    }
+}

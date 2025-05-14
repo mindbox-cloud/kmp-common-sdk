@@ -33,7 +33,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            //put your multiplatform dependencies here
+            implementation(project(":abmixer"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
