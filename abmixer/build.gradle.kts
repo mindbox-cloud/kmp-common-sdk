@@ -6,7 +6,6 @@ plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("com.android.library")
 }
-
 kotlin {
     androidTarget {
         compilations.all {
@@ -16,16 +15,19 @@ kotlin {
                 }
             }
         }
+        publishLibraryVariants("release", "debug")
     }
 
-    val xcf = XCFramework()
+    val xcFrameworkName = "AbMixer"
+    val xcf = XCFramework(xcFrameworkName)
     listOf(
         iosX64(),
         iosArm64(),
         iosSimulatorArm64()
     ).forEach {
         it.binaries.framework {
-            baseName = "mindbox-common"
+            baseName = xcFrameworkName
+            binaryOption("bundleId", "cloud.mindbox.mobile_sdk.${xcFrameworkName}")
             xcf.add(this)
             isStatic = true
         }
@@ -33,7 +35,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":abmixer"))
+            //put your multiplatform dependencies here
         }
         commonTest.dependencies {
             implementation("org.jetbrains.kotlin:kotlin-test:2.0.0")
@@ -42,8 +44,8 @@ kotlin {
 }
 
 android {
-    namespace = "cloud.mindbox.common"
-    compileSdk = 36
+    namespace = "cloud.mindbox.mobile_sdk.abmixer"
+    compileSdk = 35
     defaultConfig {
         minSdk = 21
     }
