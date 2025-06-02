@@ -33,7 +33,6 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":abmixer"))
         }
         commonTest.dependencies {
             implementation("org.jetbrains.kotlin:kotlin-test:2.0.0")

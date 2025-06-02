@@ -4,8 +4,9 @@ import cloud.mindbox.mobile_sdk.abmixer.CustomerAbMixer
 
 public object MindboxCommon {
 
-    val version: String = "1.0.0"
+    const val VERSION: Long = 1
 
+    @Suppress("unused")
     private fun check() {
         CustomerAbMixer.impl()
     }
