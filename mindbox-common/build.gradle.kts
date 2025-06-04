@@ -5,7 +5,11 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("com.android.library")
+    id("maven-publish")
 }
+
+group = "cloud.mindbox"
+version = "1.0.0"
 
 kotlin {
     androidTarget {
@@ -16,6 +20,7 @@ kotlin {
                 }
             }
         }
+        publishLibraryVariants("release")
     }
 
     val xcf = XCFramework()
@@ -49,5 +54,18 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+}
+
+publishing {
+    publications.withType<MavenPublication> {
+        artifactId = "mindbox-common"
     }
 }
