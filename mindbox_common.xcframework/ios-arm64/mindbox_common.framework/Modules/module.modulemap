@@ -1,0 +1,8 @@
+framework module "mindbox_common" {
+    umbrella header "mindbox_common.h"
+
+    export *
+    module * { export * }
+
+    use Foundation
+}

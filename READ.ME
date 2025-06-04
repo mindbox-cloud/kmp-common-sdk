@@ -1,0 +1,21 @@
+## Set up remote integration
+
+# Run the Gradle task to create the framework:
+
+./gradlew :mindbox-common:assembleXCFramework
+
+cd mindbox-common/build/XCFrameworks/release/
+
+zip -r mindbox_common.xcframework.zip mindbox_common.xcframework/
+
+swift package compute-checksum mindbox_common.xcframework.zip
+
+# Remove SMP cache:
+
+rm -rf ~/Library/org.swift.swiftpm
+
+rm -rf ~/Library/Caches/org.swift.swiftpm
+
+# Check SMP dependencies
+
+swift package reset && swift package show-dependencies --format json
