@@ -6,10 +6,11 @@ plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("com.android.library")
     id("maven-publish")
+    id("com.vanniktech.maven.publish") version "0.33.0"
 }
 
 group = "cloud.mindbox"
-version = "1.0.0"
+version = "1.0.0-SNAPSHOT"
 
 kotlin {
     androidTarget {
@@ -65,7 +66,44 @@ android {
 }
 
 publishing {
-    publications.withType<MavenPublication> {
-        artifactId = "mindbox-common"
+    repositories {
+        maven {
+            name = "Snapshots"
+            url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+        }
     }
+}
+
+mavenPublishing {
+    publishToMavenCentral(automaticRelease = true)
+    
+    coordinates(group.toString(), "mindbox-common", version.toString())
+
+    pom {
+        name.set("Mindbox Common SDK")
+        description = "Android Mindbox SDK"
+        url = "https://github.com/mindbox-cloud/android-sdk"
+        licenses {
+            license {
+                name = "The Mindbox License"
+                url = "https://github.com/mindbox-cloud/android-sdk/blob/master/LICENSE.md"
+            }
+        }
+
+        developers {
+            developer {
+                id = "Mindbox"
+                name = "Mindbox"
+                email = "android-sdk@mindbox.ru"
+            }
+        }
+
+        scm {
+            connection = "scm:https://github.com/mindbox-cloud/android-sdk.git"
+            developerConnection = "scm:git://github.com/mindbox-cloud/android-sdk.git"
+            url = "https://github.com/mindbox-cloud/android-sdk"
+        }
+    }
+
+    signAllPublications()
 }
