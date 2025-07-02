@@ -1,6 +1,6 @@
-package cloud.mindbox.mobile_sdk.abmixer
+package cloud.mindbox.mobile_sdk.abtests
 
-internal class CustomerAbMixerImpl : CustomerAbMixer {
+public class CustomerAbMixerImpl : CustomerAbMixer {
 
     @OptIn(ExperimentalUnsignedTypes::class)
     override fun stringModulusHash(identifier: String, salt: String): Int {
