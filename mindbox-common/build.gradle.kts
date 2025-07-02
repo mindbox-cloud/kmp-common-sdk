@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "cloud.mindbox"
-version = "1.0.0-SNAPSHOT"
+version = "1.0.1-SNAPSHOT"
 
 kotlin {
     androidTarget {
@@ -48,7 +48,7 @@ kotlin {
 
 android {
     namespace = "cloud.mindbox.common"
-    compileSdk = 36
+    compileSdk = 35
     defaultConfig {
         minSdk = 21
     }
@@ -63,14 +63,9 @@ android {
             withJavadocJar()
         }
     }
-}
 
-publishing {
-    repositories {
-        maven {
-            name = "Snapshots"
-            url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-        }
+    kotlin {
+        explicitApi()
     }
 }
 
@@ -82,7 +77,7 @@ mavenPublishing {
     pom {
         name.set("Mindbox Common SDK")
         description = "Android Mindbox SDK"
-        url = "https://github.com/mindbox-cloud/android-sdk"
+        url = "https://github.com/mindbox-cloud/kmp-common-sdk"
         licenses {
             license {
                 name = "The Mindbox License"
@@ -99,11 +94,60 @@ mavenPublishing {
         }
 
         scm {
-            connection = "scm:https://github.com/mindbox-cloud/android-sdk.git"
-            developerConnection = "scm:git://github.com/mindbox-cloud/android-sdk.git"
-            url = "https://github.com/mindbox-cloud/android-sdk"
+            connection = "scm:https://github.com/mindbox-cloud/kmp-common-sdk.git"
+            developerConnection = "scm:git://github.com/mindbox-cloud/kmp-common-sdk.git"
+            url = "https://github.com/mindbox-cloud/kmp-common-sdk"
         }
     }
 
     signAllPublications()
+}
+
+
+abstract class GenerateBuildConfigTask : DefaultTask() {
+    @get:Input
+    abstract val versionName: Property<String>
+
+    @get:OutputDirectory
+    val outputDir = project.layout.buildDirectory.dir("generated/source/version")
+
+    @TaskAction
+    fun generate() {
+        val pkgDir = outputDir.get().asFile.resolve("cloud/mindbox/common")
+        pkgDir.mkdirs()
+        val file = pkgDir.resolve("BuildConfig.kt")
+        file.writeText(
+            """
+            package cloud.mindbox.common
+            
+            internal object BuildConfig {
+                internal const val VERSION_NAME = "${versionName.get()}"
+             }
+            """.trimIndent()
+        )
+    }
+}
+
+tasks.register("generateBuildConfig", GenerateBuildConfigTask::class) {
+    versionName.set(project.version.toString())
+}
+
+kotlin.sourceSets["commonMain"].kotlin.srcDir(
+    tasks.named("generateBuildConfig").flatMap { (it as GenerateBuildConfigTask).outputDir }
+)
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    dependsOn("generateBuildConfig")
+}
+
+tasks.matching { it.name.endsWith("SourcesJar") }.configureEach {
+    dependsOn("generateBuildConfig")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configureEach {
+    dependsOn("generateBuildConfig")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompileCommon>().configureEach {
+    dependsOn("generateBuildConfig")
 }

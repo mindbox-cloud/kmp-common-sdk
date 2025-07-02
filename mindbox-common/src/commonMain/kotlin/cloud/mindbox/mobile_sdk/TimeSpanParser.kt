@@ -1,4 +1,4 @@
-package cloud.mindbox.common
+package cloud.mindbox.mobile_sdk
 
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
@@ -17,8 +17,8 @@ import kotlin.time.Duration.Companion.seconds
  *
  * @see <a href="https://learn.microsoft.com/en-us/dotnet/standard/base-types/standard-timespan-format-strings">.NET TimeSpan format</a>
  */
-object TimeSpanParser {
-    fun parseToMillis(timeSpanString: String): Long {
+internal object TimeSpanParser {
+    internal fun parseToMillis(timeSpanString: String): Long {
         val regex = """(-)?(\d+\.)?([01]?\d|2[0-3]):([0-5]?\d):([0-5]?\d)(\.\d{1,7})?""".toRegex()
         val matchResult = regex.matchEntire(timeSpanString)
             ?: throw IllegalArgumentException("Invalid timeSpan format")
