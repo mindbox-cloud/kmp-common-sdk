@@ -34,4 +34,5 @@ internal object TimeSpanParser {
     }
 }
 
+@Throws(IllegalArgumentException::class)
 public fun String.parseTimeSpanToMillis(): Long = TimeSpanParser.parseToMillis(this)

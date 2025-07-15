@@ -34,6 +34,7 @@ kotlin {
             baseName = "mindbox-common"
             xcf.add(this)
             isStatic = true
+            freeCompilerArgs += "-g"
         }
     }
 
