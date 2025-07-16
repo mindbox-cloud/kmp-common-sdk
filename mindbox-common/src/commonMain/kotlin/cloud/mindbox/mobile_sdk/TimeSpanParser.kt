@@ -25,10 +25,14 @@ internal object TimeSpanParser {
         val (sign, days, hours, minutes, seconds, fraction) = matchResult.destructured
         val daysCorrected = if (days.isBlank()) "0" else days.dropLast(1)
 
-        val duration = daysCorrected.toLong().days +
-                hours.toLong().hours +
-                minutes.toLong().minutes +
-                (seconds + fraction).toDouble().seconds
+        val duration = try {
+            daysCorrected.toLong().days +
+                    hours.toLong().hours +
+                    minutes.toLong().minutes +
+                    (seconds + fraction).toDouble().seconds
+        } catch (e: NumberFormatException) {
+            throw IllegalArgumentException("Invalid timeSpan format", e)
+        }
 
         return if (sign == "-") duration.inWholeMilliseconds * -1 else duration.inWholeMilliseconds
     }
