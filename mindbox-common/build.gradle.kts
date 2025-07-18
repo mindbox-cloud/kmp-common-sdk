@@ -24,14 +24,15 @@ kotlin {
         publishLibraryVariants("release")
     }
 
-    val xcf = XCFramework()
+    val xcframeworkName = "MindboxCommon"
+    val xcf = XCFramework(xcframeworkName)
     listOf(
         iosX64(),
         iosArm64(),
         iosSimulatorArm64()
     ).forEach {
         it.binaries.framework {
-            baseName = "mindbox-common"
+            baseName = xcframeworkName
             xcf.add(this)
             isStatic = true
             freeCompilerArgs += "-g"
