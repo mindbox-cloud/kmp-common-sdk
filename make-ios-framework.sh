@@ -1,7 +1,8 @@
+rm -rf mindbox-common/build/XCFrameworks/
 ./gradlew assembleMindboxCommonReleaseXCFramework
 
-cp -R mindbox-common/build/XCFrameworks/release/MindboxCommon.xcframework frameworks/
+cd mindbox-common/build/XCFrameworks/release/
 
-zip -r frameworks/MindboxCommon.xcframework.zip frameworks/MindboxCommon.xcframework/
+zip -r MindboxCommon.xcframework.zip MindboxCommon.xcframework/
 
-swift package compute-checksum frameworks/MindboxCommon.xcframework.zip
+swift package compute-checksum MindboxCommon.xcframework.zip
