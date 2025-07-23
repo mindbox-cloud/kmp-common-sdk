@@ -11,13 +11,12 @@ public object MindboxCommon {
     private fun check() {
         CustomerAbMixer.impl()
     }
-
 }
 
 internal enum class MindboxCommonPlatform {
     ANDROID,
     IOS,
-    UNKNOWN;
+    UNKNOWN
 }
 
 internal expect fun getPlatform(): MindboxCommonPlatform

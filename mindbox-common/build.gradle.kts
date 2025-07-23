@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.tasks.testing.Test
 
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
@@ -7,6 +8,7 @@ plugins {
     id("com.android.library")
     id("maven-publish")
     id("com.vanniktech.maven.publish") version "0.33.0"
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
 }
 
 group = "cloud.mindbox"
@@ -71,9 +73,24 @@ android {
     }
 }
 
+ktlint {
+    version = "1.3.1"
+    debug = true
+    verbose = true
+    android = true
+    outputToConsole = true
+    reporters {
+        reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.CHECKSTYLE)
+    }
+    filter {
+        exclude("**/generated/**")
+        include("**/kotlin/**")
+    }
+}
+
 mavenPublishing {
     publishToMavenCentral(automaticRelease = true)
-    
+
     coordinates(group.toString(), "mindbox-common", version.toString())
 
     pom {
@@ -104,7 +121,6 @@ mavenPublishing {
 
     signAllPublications()
 }
-
 
 abstract class GenerateBuildConfigTask : DefaultTask() {
     @get:Input
@@ -152,4 +168,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompileCommon>().configureEach {
     dependsOn("generateBuildConfig")
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }

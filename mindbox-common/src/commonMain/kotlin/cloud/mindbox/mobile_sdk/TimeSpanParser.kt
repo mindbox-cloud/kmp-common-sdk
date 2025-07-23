@@ -27,9 +27,9 @@ internal object TimeSpanParser {
 
         val duration = try {
             daysCorrected.toLong().days +
-                    hours.toLong().hours +
-                    minutes.toLong().minutes +
-                    (seconds + fraction).toDouble().seconds
+                hours.toLong().hours +
+                minutes.toLong().minutes +
+                (seconds + fraction).toDouble().seconds
         } catch (e: NumberFormatException) {
             throw IllegalArgumentException("Invalid timeSpan format", e)
         }

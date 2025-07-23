@@ -509,9 +509,9 @@ class CustomerAbMixerTest {
     F24651C4-E5EB-C21C-1847-6A9AFB065035 56, 5E670791-06A1-A721-8245-44B113519BF3 51,
     1BBC07EB-2342-56D4-B65B-893360651BF2 83, 9F733844-67FA-855E-1E79-B44A56562A58 1"""
 
-
         fun testData(): List<Pair<String, Int>> =
-            REFERENCE_INTEGER_MODULUS_VALUES.split(",", "\r", "\n")
+            REFERENCE_INTEGER_MODULUS_VALUES
+                .split(",", "\r", "\n")
                 .filter { it.isNotBlank() }
                 .map { str ->
                     val items = str.trim().split(' ')

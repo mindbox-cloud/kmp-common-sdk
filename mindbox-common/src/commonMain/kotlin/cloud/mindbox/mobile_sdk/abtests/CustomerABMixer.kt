@@ -9,4 +9,3 @@ public interface CustomerAbMixer {
 
     public fun stringModulusHash(identifier: String, salt: String): Int
 }
-
