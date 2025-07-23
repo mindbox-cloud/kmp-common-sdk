@@ -45,7 +45,7 @@ kotlin {
         commonMain.dependencies {
         }
         commonTest.dependencies {
-            implementation("org.jetbrains.kotlin:kotlin-test:2.0.0")
+            implementation("org.jetbrains.kotlin:kotlin-test:2.1.20")
         }
     }
 }
@@ -137,7 +137,7 @@ abstract class GenerateBuildConfigTask : DefaultTask() {
         file.writeText(
             """
             package cloud.mindbox.common
-            
+
             internal object BuildConfig {
                 internal const val VERSION_NAME = "${versionName.get()}"
              }
