@@ -1,6 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.api.tasks.testing.Test
-
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
@@ -12,7 +11,8 @@ plugins {
 }
 
 group = "cloud.mindbox"
-version = "1.0.1-SNAPSHOT"
+version = providers.gradleProperty("KMP_SDK_VERSION_NAME").get()
+println("KMP_SDK_VERSION_NAME: $version")
 
 kotlin {
     androidTarget {
@@ -45,7 +45,7 @@ kotlin {
         commonMain.dependencies {
         }
         commonTest.dependencies {
-            implementation("org.jetbrains.kotlin:kotlin-test:2.1.20")
+            implementation(kotlin("test"))
         }
     }
 }
