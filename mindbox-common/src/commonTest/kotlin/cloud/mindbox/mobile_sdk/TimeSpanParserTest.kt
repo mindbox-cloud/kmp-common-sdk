@@ -1,4 +1,4 @@
-package cloud.mindbox.common
+package cloud.mindbox.mobile_sdk
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -106,4 +106,4 @@ class TimeSpanParserTest {
         assertEquals(0, "00:00:00".parseTimeSpanToMillis())
         assertEquals(-123, "-00:00:00.123".parseTimeSpanToMillis())
     }
-} 
+}
