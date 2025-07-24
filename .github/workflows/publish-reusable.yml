@@ -21,7 +21,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
-      - name: Setup Android SDK
+      - name: Setup Common SDK
         uses: android-actions/setup-android@v2
       - name: lint check
         run: ./gradlew --no-daemon check
@@ -39,7 +39,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
-      - name: Setup Android SDK
+      - name: Setup Common SDK
         uses: android-actions/setup-android@v2
       - name: unit tests
         run: ./gradlew --no-daemon testDebugUnitTest

@@ -13,7 +13,7 @@ on:
 
 jobs:
   checks:
-    runs-on: macos-lastest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -26,7 +26,7 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Setup Android SDK
+      - name: Setup Common SDK
         uses: android-actions/setup-android@v2
 
       - name: Get changed Kotlin files

@@ -89,18 +89,22 @@ ktlint {
 }
 
 mavenPublishing {
-    publishToMavenCentral(automaticRelease = true)
+    publishToMavenCentral()
+
+    if ((System.getenv("CI") == "true")) {
+        signAllPublications()
+    }
 
     coordinates(group.toString(), "mindbox-common", version.toString())
 
     pom {
         name.set("Mindbox Common SDK")
-        description = "Android Mindbox SDK"
+        description = "Mindbox Common SDK"
         url = "https://github.com/mindbox-cloud/kmp-common-sdk"
         licenses {
             license {
                 name = "The Mindbox License"
-                url = "https://github.com/mindbox-cloud/android-sdk/blob/master/LICENSE.md"
+                url = "https://github.com/mindbox-cloud/kmp-common-sdk/blob/master/LICENSE.md"
             }
         }
 
@@ -108,7 +112,7 @@ mavenPublishing {
             developer {
                 id = "Mindbox"
                 name = "Mindbox"
-                email = "android-sdk@mindbox.ru"
+                email = "mobile-sdk@mindbox.cloud"
             }
         }
 
@@ -118,8 +122,6 @@ mavenPublishing {
             url = "https://github.com/mindbox-cloud/kmp-common-sdk"
         }
     }
-
-    signAllPublications()
 }
 
 abstract class GenerateBuildConfigTask : DefaultTask() {

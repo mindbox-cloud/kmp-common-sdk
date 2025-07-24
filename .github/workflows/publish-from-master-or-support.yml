@@ -1,4 +1,4 @@
-name: SDK publish from master or support branch
+name: Common SDK publish from master or support branch
 
 on:
   pull_request:
