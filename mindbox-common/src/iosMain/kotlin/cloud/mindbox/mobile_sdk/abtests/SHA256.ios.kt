@@ -1,11 +1,11 @@
-package cloud.mindbox.mobile_sdk.abmixer
+package cloud.mindbox.mobile_sdk.abtests
 
 import kotlinx.cinterop.*
 import platform.CoreCrypto.CC_SHA256
 import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 
 @OptIn(ExperimentalForeignApi::class)
-actual fun ByteArray.sha256(): UByteArray {
+internal actual fun ByteArray.sha256(): UByteArray {
     val digest = UByteArray(CC_SHA256_DIGEST_LENGTH)
     this.usePinned { inputPinned ->
         digest.usePinned { digestPinned ->
