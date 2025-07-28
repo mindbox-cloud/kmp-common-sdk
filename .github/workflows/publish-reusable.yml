@@ -8,61 +8,38 @@ on:
         type: string
  
 jobs:
-  lint:
-    runs-on: ubuntu-latest
+  checks:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
-
+          fetch-depth: 2
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
+
       - name: Setup Common SDK
         uses: android-actions/setup-android@v2
+
+      - name: Run ktlintCheck on changed files
+        if: steps.get_changed_files.outputs.CHANGED_FILES != ''
+        run: ./gradlew ktlintCheck -PinternalKtlintGitFilter="${{ steps.get_changed_files.outputs.CHANGED_FILES }}"
+
       - name: lint check
         run: ./gradlew --no-daemon check
 
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-      - name: Setup Common SDK
-        uses: android-actions/setup-android@v2
       - name: unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: ./gradlew --no-daemon --stacktrace --rerun-tasks test
 
-  build:
-    needs: [lint, unit-tests]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
       - name: build project
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon assemble
 
   set-tag:
-    needs: [build]
+    needs: [checks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
