@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
@@ -91,7 +90,7 @@ ktlint {
 mavenPublishing {
     publishToMavenCentral()
 
-    if ((System.getenv("CI") == "true")) {
+    if (System.getenv("CI") == "true") {
         signAllPublications()
     }
 
