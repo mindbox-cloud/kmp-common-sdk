@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
+import org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask
+import org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -141,7 +143,8 @@ abstract class GenerateBuildConfigTask : DefaultTask() {
 
             internal object BuildConfig {
                 internal const val VERSION_NAME = "${versionName.get()}"
-             }
+            }
+
             """.trimIndent()
         )
     }
@@ -154,6 +157,13 @@ tasks.register("generateBuildConfig", GenerateBuildConfigTask::class) {
 kotlin.sourceSets["commonMain"].kotlin.srcDir(
     tasks.named("generateBuildConfig").flatMap { (it as GenerateBuildConfigTask).outputDir }
 )
+
+tasks.withType<KtLintCheckTask>().configureEach {
+    dependsOn("generateBuildConfig")
+}
+tasks.withType<KtLintFormatTask>().configureEach {
+    dependsOn("generateBuildConfig")
+}
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     dependsOn("generateBuildConfig")
