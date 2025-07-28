@@ -90,9 +90,9 @@ jobs:
         # Change github variable CENTER_PORTAL_AUTO_RELEASE to set up auto release Maven Central
         run: |
           if [ "${{ vars.CENTER_PORTAL_AUTO_RELEASE }}" = "true" ]; then
-          ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache --stacktrace --debug
+          ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
           else
-          ./gradlew publishToMavenCentral --no-configuration-cache --stacktrace --debug
+          ./gradlew publishToMavenCentral --no-configuration-cache
           fi
 
   release-github:
