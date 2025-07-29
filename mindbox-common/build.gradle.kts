@@ -4,7 +4,7 @@ import org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask
 import org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask
 
 plugins {
-    id("org.jetbrains.kotlin.multiplatform")
+    id("org.jetbrains.kotlin.multiplatform") version "1.9.22"
     id("com.android.library")
     id("maven-publish")
     id("com.vanniktech.maven.publish") version "0.33.0"
