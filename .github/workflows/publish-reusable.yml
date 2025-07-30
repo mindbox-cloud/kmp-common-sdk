@@ -30,7 +30,7 @@ jobs:
         run: ./gradlew ktlintCheck -PinternalKtlintGitFilter="${{ steps.get_changed_files.outputs.CHANGED_FILES }}"
 
       - name: lint check
-        run: ./gradlew --no-daemon check
+        run: ./gradlew --no-daemon lintDebug
 
       - name: unit tests
         run: ./gradlew --no-daemon --stacktrace --rerun-tasks test
