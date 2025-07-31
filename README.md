@@ -1,6 +1,6 @@
 # Mindbox Common KMP library for Mindbox SDK
 
-[![Maven Central](https://maven-badges.sml.io/maven-central/cloud.mindbox/kmp-common-sdk/badge.svg)](https://central.sonatype.com/artifact/cloud.mindbox/kmp-common-sdk)
+[![Maven Central](https://img.shields.io/maven-central/v/cloud.mindbox/mindbox-common)](https://central.sonatype.com/artifact/cloud.mindbox/mindbox-common)
 
 This repository contains the source code for the common Kotlin Multiplatform (KMP) library used by the [Mindbox Android SDK](https://github.com/mindbox-cloud/android-sdk) and [Mindbox iOS SDK](https://github.com/mindbox-cloud/ios-sdk).
 
