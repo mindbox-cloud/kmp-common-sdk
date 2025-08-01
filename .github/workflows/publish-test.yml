@@ -1,0 +1,47 @@
+name: SDK publish TEST
+
+on:
+  workflow_dispatch:
+ 
+jobs:
+  set-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.extract_version.outputs.SDK_VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+      - name: Extract SDK version
+        id: extract_version
+        run: |
+            SDK_VERSION=$(grep '^KMP_SDK_VERSION_NAME=' gradle.properties | cut -d '=' -f2)
+            echo "SDK_VERSION=$SDK_VERSION" >> $GITHUB_ENV
+            echo "SDK_VERSION=$SDK_VERSION" >> $GITHUB_OUTPUT
+            echo "Extracted Common SDK version: $SDK_VERSION"
+      - name: Create tag
+        run: |
+            git tag ${{ env.SDK_VERSION }}
+            git push origin ${{ env.SDK_VERSION }}
+
+  release-github:
+    needs: [set-tag]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+      - name: Build XCFramework
+        run: ./make-ios-framework.sh
+      - name: Github Release generation
+        run: ./.github/git-release-ci.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Upload XCFramework to release
+        run: |
+          gh release upload ${{ needs.set-tag.outputs.tag }} \
+          ios-framework/MindboxCommonSDK/build/XCFrameworks/release/MindboxCommonSDK.xcframework.zip \
+          --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
