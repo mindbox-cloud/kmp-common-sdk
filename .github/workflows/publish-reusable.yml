@@ -112,6 +112,8 @@ jobs:
         run: ./.github/git-release-ci.sh
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Verify framework existence
+        run: ls -R mindbox-common/build/XCFrameworks/release
       - name: Upload XCFramework to release
         run: |
           gh release upload ${{ needs.set-tag.outputs.tag }} \

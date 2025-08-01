@@ -42,7 +42,7 @@ jobs:
       - name: Upload XCFramework to release
         run: |
           gh release upload ${{ needs.set-tag.outputs.tag }} \
-          mindbox-common/build/XCFrameworks/release/MindboxCommonSDK.xcframework.zip \
+          mindbox-common/build/XCFrameworks/release/MindboxCommon.xcframework.zip \
           --clobber
         env:
           GH_TOKEN: ${{ github.token }}
