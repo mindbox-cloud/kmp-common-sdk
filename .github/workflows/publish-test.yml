@@ -1,7 +1,9 @@
 name: SDK publish TEST
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - 'kitselyuk/add_framework_zipto_release'
  
 jobs:
   set-tag:
