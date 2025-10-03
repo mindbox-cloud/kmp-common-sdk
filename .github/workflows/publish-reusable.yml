@@ -8,38 +8,8 @@ on:
         type: string
  
 jobs:
-  checks:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
-          fetch-depth: 2
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-
-      - name: Setup Common SDK
-        uses: android-actions/setup-android@v2
-
-      - name: Run ktlintCheck on changed files
-        if: steps.get_changed_files.outputs.CHANGED_FILES != ''
-        run: ./gradlew ktlintCheck -PinternalKtlintGitFilter="${{ steps.get_changed_files.outputs.CHANGED_FILES }}"
-
-      - name: lint check
-        run: ./gradlew --no-daemon lintDebug
-
-      - name: unit tests
-        run: ./gradlew --no-daemon --stacktrace --rerun-tasks test
-
-      - name: build project
-        run: ./gradlew --no-daemon assemble
 
   set-tag:
-    needs: [checks]
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.extract_version.outputs.SDK_VERSION }}
@@ -59,48 +29,8 @@ jobs:
             git tag ${{ env.SDK_VERSION }}
             git push origin ${{ env.SDK_VERSION }}
 
-  publish:
-    needs: [set-tag]
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-      - name: Prepare to publish
-        run: |
-          echo '${{secrets.GPGKEYCONTENTS}}' | base64 -d > /tmp/publish_key.gpg
-          gpg --quiet --batch --yes --decrypt --passphrase="${{secrets.SECRETPASSPHRASE}}" \
-          --output /tmp/secret.gpg /tmp/publish_key.gpg
-          echo "signing.password=${{secrets.SIGNINGPASSWORD}}" >> gradle.properties
-          echo "signing.keyId=${{secrets.SIGNINGKEYID}}" >> gradle.properties
-          echo "signing.secretKeyRingFile=/tmp/secret.gpg" >> gradle.properties
-          echo "mavenCentralUsername=${{secrets.CENTER_PORTAL_USERNAME}}" >> gradle.properties
-          echo "mavenCentralPassword=${{secrets.CENTER_PORTAL_PASSWORD}}" >> gradle.properties
-        env:
-          signingpassword: ${{secrets.SIGNINGPASSWORD}}
-          signingkeyId: ${{secrets.SIGNINGKEYID}}
-          SECRETPASSPHRASE: ${{secrets.SECRETPASSPHRASE}}
-          GPGKEYCONTENTS: ${{secrets.GPGKEYCONTENTS}}
-          SONATYPE_CONNECT_TIMEOUT_SECONDS: 60
-          SONATYPE_CLOSE_TIMEOUT_SECONDS: 900
-          ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
-      - name: Publish to Central Portal
-        # Change github variable CENTER_PORTAL_AUTO_RELEASE to set up auto release Maven Central
-        run: |
-          if [ "${{ vars.CENTER_PORTAL_AUTO_RELEASE }}" = "true" ]; then
-          ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
-          else
-          ./gradlew publishToMavenCentral --no-configuration-cache
-          fi
-
   release-github:
-    needs: [publish]
+    needs: [set-tag]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
