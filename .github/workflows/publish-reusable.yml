@@ -98,9 +98,27 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
             https://api.github.com/repos/vailence/kmp-common-sdk-spm/dispatches \
             -d "{\"event_type\": \"download_xcframework\", \"client_payload\": {\"version\": \"${{ needs.release-github.outputs.tag }}\"}}"
+            
+  merge:
+    needs: [trigger-repo-b]
+    if: startsWith(github.head_ref, 'release/') && github.base_ref == 'master'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.PAT_FOR_TRIGGERING_BRANCH_PROTECTION }}
+    steps:
+      - name: Checkout develop branch
+        uses: actions/checkout@v5
+        with:
+          ref: develop
+      - name: Create Pull Request
+        run: gh pr create --base develop --head master --title "Merge 'master' into 'develop' after release" --body "Automated Pull Request to merge 'master' into 'develop' after release"
+      - name: Merge Pull Request
+        run: |
+          pr_number=$(gh pr list --base develop --head master --json number --jq '.[0].number')
+          gh pr merge $pr_number --merge --auto
   
   message-to-loop-if-success:
-    needs: [trigger-repo-b]
+    needs: [merge]
     runs-on: ubuntu-latest
     steps:
       - name: Send message to LOOP
