@@ -1,4 +1,4 @@
-name: Common SDK publish from master or support branch
+name: 2. Auto Github Release
 
 on:
   pull_request:
