@@ -85,22 +85,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  trigger-repo-b:
+  trigger-kmp-common-spm:
     needs: [release-github]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger workflow in repo B
         run: |
-          echo "Triggering workflow in repo B..."
+          echo "Triggering workflow in repo KMP-COMMON-SDK-SPM..."
           echo "TAG=${{ needs.release-github.outputs.tag }}"
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
-            https://api.github.com/repos/vailence/kmp-common-sdk-spm/dispatches \
+            https://api.github.com/repos/mindbox-cloud/kmp-common-sdk-spm/dispatches \
             -d "{\"event_type\": \"download_xcframework\", \"client_payload\": {\"version\": \"${{ needs.release-github.outputs.tag }}\"}}"
             
   merge:
-    needs: [trigger-repo-b]
+    needs: [trigger-kmp-common-spm]
     if: startsWith(github.head_ref, 'release/') && github.base_ref == 'master'
     runs-on: ubuntu-latest
     env:
