@@ -1,4 +1,4 @@
-name: SDK publish
+name: 2. Github Release Reusable
 
 on:
   workflow_call:
@@ -11,10 +11,11 @@ jobs:
   checks:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 2
+          
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
@@ -42,7 +43,7 @@ jobs:
     needs: [checks]
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.extract_version.outputs.SDK_VERSION }}
+      tag: ${{ steps.extract_version.outputs.sdk_version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,58 +51,20 @@ jobs:
       - name: Extract SDK version
         id: extract_version
         run: |
-            SDK_VERSION=$(grep '^KMP_SDK_VERSION_NAME=' gradle.properties | cut -d '=' -f2)
-            echo "SDK_VERSION=$SDK_VERSION" >> $GITHUB_ENV
-            echo "SDK_VERSION=$SDK_VERSION" >> $GITHUB_OUTPUT
-            echo "Extracted Common SDK version: $SDK_VERSION"
+          SDK_VERSION=$(grep '^SDK_VERSION_NAME=' gradle.properties | cut -d '=' -f2)
+          echo "Extracted SDK version: ${SDK_VERSION}"
+          echo "sdk_version=${SDK_VERSION}" >> $GITHUB_OUTPUT
+          echo "SDK_VERSION=${SDK_VERSION}" >> $GITHUB_ENV
       - name: Create tag
         run: |
-            git tag ${{ env.SDK_VERSION }}
-            git push origin ${{ env.SDK_VERSION }}
-
-  publish:
+          git tag "${{ env.SDK_VERSION }}"
+          git push origin "${{ env.SDK_VERSION }}"
+          
+  release-github:
     needs: [set-tag]
     runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-      - name: Prepare to publish
-        run: |
-          echo '${{secrets.GPGKEYCONTENTS}}' | base64 -d > /tmp/publish_key.gpg
-          gpg --quiet --batch --yes --decrypt --passphrase="${{secrets.SECRETPASSPHRASE}}" \
-          --output /tmp/secret.gpg /tmp/publish_key.gpg
-          echo "signing.password=${{secrets.SIGNINGPASSWORD}}" >> gradle.properties
-          echo "signing.keyId=${{secrets.SIGNINGKEYID}}" >> gradle.properties
-          echo "signing.secretKeyRingFile=/tmp/secret.gpg" >> gradle.properties
-          echo "mavenCentralUsername=${{secrets.CENTER_PORTAL_USERNAME}}" >> gradle.properties
-          echo "mavenCentralPassword=${{secrets.CENTER_PORTAL_PASSWORD}}" >> gradle.properties
-        env:
-          signingpassword: ${{secrets.SIGNINGPASSWORD}}
-          signingkeyId: ${{secrets.SIGNINGKEYID}}
-          SECRETPASSPHRASE: ${{secrets.SECRETPASSPHRASE}}
-          GPGKEYCONTENTS: ${{secrets.GPGKEYCONTENTS}}
-          SONATYPE_CONNECT_TIMEOUT_SECONDS: 60
-          SONATYPE_CLOSE_TIMEOUT_SECONDS: 900
-          ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
-      - name: Publish to Central Portal
-        # Change github variable CENTER_PORTAL_AUTO_RELEASE to set up auto release Maven Central
-        run: |
-          if [ "${{ vars.CENTER_PORTAL_AUTO_RELEASE }}" = "true" ]; then
-          ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
-          else
-          ./gradlew publishToMavenCentral --no-configuration-cache
-          fi
-
-  release-github:
-    needs: [publish]
-    runs-on: macos-latest
+    outputs:
+      tag: ${{ needs.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -122,20 +85,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  message-to-loop-if-success:
+  trigger-kmp-common-spm:
     needs: [release-github]
     runs-on: ubuntu-latest
     steps:
-      - name: Send message to LOOP
-        env:
-            LOOP_NOTIFICATION_WEBHOOK_URL: ${{ secrets.LOOP_NOTIFICATION_WEBHOOK_URL }}
-            VERSION: ${{ github.ref_name }}
+      - name: Trigger workflow in repo B
         run: |
-            MESSAGE=$(cat <<EOF
-            {
-              "text": "**🤖 KMP release was successful. Version: ${VERSION}**"
-            }
-            EOF)
-            curl -X POST "$LOOP_NOTIFICATION_WEBHOOK_URL" \
-              -H "Content-Type: application/json" \
-              -d "$MESSAGE"
+          echo "Triggering workflow in repo KMP-COMMON-SDK-SPM..."
+          echo "TAG=${{ needs.release-github.outputs.tag }}"
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+            https://api.github.com/repos/mindbox-cloud/kmp-common-sdk-spm/dispatches \
+            -d "{\"event_type\": \"download_xcframework\", \"client_payload\": {\"version\": \"${{ needs.release-github.outputs.tag }}\"}}"
+            
+  merge:
+    needs: [trigger-kmp-common-spm]
+    if: startsWith(github.head_ref, 'release/') && github.base_ref == 'master'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.PAT_FOR_TRIGGERING_BRANCH_PROTECTION }}
+    steps:
+      - name: Checkout develop branch
+        uses: actions/checkout@v5
+        with:
+          ref: develop
+      - name: Create Pull Request
+        run: gh pr create --base develop --head master --title "Merge 'master' into 'develop' after release" --body "Automated Pull Request to merge 'master' into 'develop' after release"
+      - name: Merge Pull Request
+        run: |
+          pr_number=$(gh pr list --base develop --head master --json number --jq '.[0].number')
+          gh pr merge $pr_number --merge --auto

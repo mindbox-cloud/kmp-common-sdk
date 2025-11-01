@@ -1,4 +1,4 @@
-name: Common SDK publish RC manual
+name: 2. Manual Github Release
 
 
 on:
@@ -10,8 +10,8 @@ jobs:
     steps:
       - name: Check if branch matches pattern
         run: |
-          if ! echo "${{ github.ref_name }}" | grep -q "release/.*-rc"; then
-            echo "Branch name must match pattern 'release/*-rc' (e.g. release/2.13.2-rc)"
+          if ! echo "${{ github.ref_name }}" | grep -q "release/"; then
+            echo "Branch name must match pattern 'release' (e.g. release/2.13.2)"
             exit 1
           fi
 
