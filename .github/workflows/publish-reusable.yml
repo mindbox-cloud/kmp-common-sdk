@@ -116,22 +116,3 @@ jobs:
         run: |
           pr_number=$(gh pr list --base develop --head master --json number --jq '.[0].number')
           gh pr merge $pr_number --merge --auto
-  
-  message-to-loop-if-success:
-    needs: [merge]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send message to LOOP
-        env:
-            LOOP_NOTIFICATION_WEBHOOK_URL: ${{ secrets.LOOP_NOTIFICATION_WEBHOOK_URL }}
-            VERSION: ${{ github.ref_name }}
-        run: |
-            MESSAGE=$(cat <<EOF
-            {
-              "text": "**🤖 KMP-COMMON-SDK Github Release successful. Version: ${VERSION}**"
-            }
-            EOF)
-            curl -X POST "$LOOP_NOTIFICATION_WEBHOOK_URL" \
-              -H "Content-Type: application/json" \
-              -d "$MESSAGE"
-

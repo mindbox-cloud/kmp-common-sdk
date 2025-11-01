@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Release version (e.g. 1.2.3)'
+        description: 'Release version (e.g. 1.2.3 or 1.2.3-rc)'
         required: true
       source_branch:
         description: 'Create branch from'
