@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-version=$(grep '^KMP_SDK_VERSION_NAME=' gradle.properties | cut -d '=' -f2)
+version=$(awk -F= '/^[[:space:]]*SDK_VERSION_NAME[[:space:]]*=/ { val=$2; sub(/#.*/,"",val); gsub(/[[:space:]]/,"",val); print val; exit }' gradle.properties)
 
 is_beta=false
 if [[ $version == *"rc"* ]]; then

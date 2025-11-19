@@ -1,19 +1,20 @@
+
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 import org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask
 import org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask
 
 plugins {
-    id("org.jetbrains.kotlin.multiplatform") version "1.9.22"
+    id("org.jetbrains.kotlin.multiplatform")
     id("com.android.library")
     id("maven-publish")
-    id("com.vanniktech.maven.publish") version "0.33.0"
-    id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
+    id("com.vanniktech.maven.publish")
+    id("org.jlleitschuh.gradle.ktlint")
 }
 
 group = "cloud.mindbox"
-version = providers.gradleProperty("KMP_SDK_VERSION_NAME").get()
-println("KMP_SDK_VERSION_NAME: $version")
+version = providers.gradleProperty("SDK_VERSION_NAME").get()
+println("mindbox-common version: $version")
 
 kotlin {
     androidTarget {
@@ -44,9 +45,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(libs.kotlin.stdlib)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
@@ -90,7 +93,7 @@ ktlint {
 }
 
 mavenPublishing {
-    publishToMavenCentral()
+    publishToMavenCentral("CENTRAL_PORTAL")
 
     if (System.getenv("CI") == "true") {
         signAllPublications()
