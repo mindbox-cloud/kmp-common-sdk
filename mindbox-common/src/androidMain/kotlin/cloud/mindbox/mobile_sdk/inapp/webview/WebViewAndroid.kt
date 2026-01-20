@@ -2,6 +2,7 @@ package cloud.mindbox.mobile_sdk.inapp.webview
 
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.os.Build
 import android.view.View
 import android.webkit.*
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
@@ -95,17 +96,28 @@ private class AndroidWebViewController(
 
     private fun createWebViewClient(): WebViewClient {
         return object : WebViewClient() {
+
+
             override fun onReceivedError(
                 view: WebView?,
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                val webViewError: WebViewError = WebViewError(
-                    code = error?.errorCode,
-                    description = error?.description?.toString(),
-                    url = request?.url?.toString(),
-                    isForMainFrame = request?.isForMainFrame
-                )
+                val webViewError: WebViewError = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    WebViewError(
+                        code = error?.errorCode,
+                        description = error?.description?.toString(),
+                        url = request?.url?.toString(),
+                        isForMainFrame = request?.isForMainFrame
+                    )
+                } else {
+                    WebViewError(
+                        code = null,
+                        description = null,
+                        url = request?.url?.toString(),
+                        isForMainFrame = request?.isForMainFrame
+                    )
+                }
                 eventListener?.onError(webViewError)
             }
 
