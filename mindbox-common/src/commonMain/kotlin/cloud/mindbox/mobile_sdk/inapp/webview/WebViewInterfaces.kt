@@ -20,7 +20,7 @@ public data class WebViewError(
 )
 
 @InternalMindboxApi
-public fun interface WebViewJsBridge {
+public interface WebViewJsBridge {
     public fun getParam(key: String): String?
 
     public fun onAction(action: String, data: String) {
@@ -28,7 +28,7 @@ public fun interface WebViewJsBridge {
 }
 
 @InternalMindboxApi
-public fun interface WebViewEventListener {
+public interface WebViewEventListener {
     public fun onPageFinished(url: String?)
 
     public fun onError(error: WebViewError) {
