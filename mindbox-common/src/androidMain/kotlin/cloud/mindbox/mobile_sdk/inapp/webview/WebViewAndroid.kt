@@ -47,7 +47,9 @@ private class AndroidWebViewController(
     }
 
     override fun setVisibility(isVisible: Boolean) {
-        webView.visibility = if (isVisible) View.VISIBLE else View.INVISIBLE
+        executeOnViewThread {
+            webView.visibility = if (isVisible) View.VISIBLE else View.INVISIBLE
+        }
     }
 
     override fun setUserAgentSuffix(suffix: String) {
@@ -55,12 +57,16 @@ private class AndroidWebViewController(
         if (currentUserAgent.contains(suffix)) {
             return
         }
-        webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
+        executeOnViewThread {
+            webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
+        }
     }
 
     override fun setJsBridge(bridge: WebViewJsBridge, bridgeName: String) {
-        webView.removeJavascriptInterface(bridgeName)
-        webView.addJavascriptInterface(AndroidWebViewJsBridge(bridge), bridgeName)
+        executeOnViewThread {
+            webView.removeJavascriptInterface(bridgeName)
+            webView.addJavascriptInterface(AndroidWebViewJsBridge(bridge), bridgeName)
+        }
     }
 
     override fun setEventListener(listener: WebViewEventListener?) {
@@ -71,12 +77,20 @@ private class AndroidWebViewController(
         webView.post(action)
     }
 
+    override fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?) {
+        executeOnViewThread {
+            webView.evaluateJavascript(js, resultCallback)
+        }
+    }
+
     override fun destroy() {
-        webView.stopLoading()
-        webView.loadUrl("about:blank")
-        webView.clearHistory()
-        webView.removeAllViews()
-        webView.destroy()
+        executeOnViewThread{
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            webView.clearHistory()
+            webView.removeAllViews()
+            webView.destroy()
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -148,13 +162,8 @@ private class AndroidWebViewController(
         private val bridge: WebViewJsBridge
     ) {
         @JavascriptInterface
-        fun receiveParam(key: String): String? {
-            return bridge.getParam(key)
-        }
-
-        @JavascriptInterface
-        fun postMessage(action: String, data: String) {
-            bridge.onAction(action, data)
+        fun postMessage(message: String) {
+            bridge.onAction(message)
         }
     }
 }
