@@ -53,11 +53,11 @@ private class AndroidWebViewController(
     }
 
     override fun setUserAgentSuffix(suffix: String) {
-        val currentUserAgent: String = webView.settings.userAgentString ?: ""
-        if (currentUserAgent.contains(suffix)) {
-            return
-        }
         executeOnViewThread {
+            val currentUserAgent: String = webView.settings.userAgentString ?: ""
+            if (currentUserAgent.contains(suffix)) {
+                return@executeOnViewThread
+            }
             webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
         }
     }

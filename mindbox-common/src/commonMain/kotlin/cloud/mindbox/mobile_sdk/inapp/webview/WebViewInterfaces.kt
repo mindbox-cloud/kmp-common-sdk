@@ -2,6 +2,7 @@ package cloud.mindbox.mobile_sdk.inapp.webview
 
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 @InternalMindboxApi
 public expect class WebViewPlatformView
 
