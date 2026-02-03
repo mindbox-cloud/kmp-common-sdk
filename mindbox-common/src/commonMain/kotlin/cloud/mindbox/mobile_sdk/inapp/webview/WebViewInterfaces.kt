@@ -2,6 +2,7 @@ package cloud.mindbox.mobile_sdk.inapp.webview
 
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 @InternalMindboxApi
 public expect class WebViewPlatformView
 
@@ -20,11 +21,8 @@ public data class WebViewError(
 )
 
 @InternalMindboxApi
-public interface WebViewJsBridge {
-    public fun getParam(key: String): String?
-
-    public fun onAction(action: String, data: String) {
-    }
+public fun interface WebViewJsBridge {
+    public fun onAction(message: String)
 }
 
 @InternalMindboxApi
@@ -50,6 +48,8 @@ public interface WebViewController {
     public fun setEventListener(listener: WebViewEventListener?)
 
     public fun executeOnViewThread(action: () -> Unit)
+
+    public fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?)
 
     public fun destroy()
 
