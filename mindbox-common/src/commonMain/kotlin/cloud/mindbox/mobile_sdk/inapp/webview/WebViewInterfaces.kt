@@ -57,4 +57,3 @@ public interface WebViewController {
 }
 
 public const val DEFAULT_WEBVIEW_BRIDGE_NAME: String = "SdkBridge"
-
