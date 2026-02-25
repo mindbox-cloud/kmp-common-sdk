@@ -59,6 +59,7 @@ private class AndroidWebViewController(
                 return@executeOnViewThread
             }
             webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
+            webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         }
     }
 
@@ -111,6 +112,25 @@ private class AndroidWebViewController(
     private fun createWebViewClient(): WebViewClient {
         return object : WebViewClient() {
 
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                return eventListener?.onShouldOverrideUrlLoading(
+                    url = request?.url?.toString(),
+                    isForMainFrame = request?.isForMainFrame,
+                ) ?: false
+            }
+
+            @Deprecated("Deprecated in Java")
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                val isForMainFrame: Boolean = url == view?.originalUrl
+                return eventListener?.onShouldOverrideUrlLoading(
+                    url = url,
+                    isForMainFrame = isForMainFrame,
+                ) ?: false
+            }
 
             override fun onReceivedError(
                 view: WebView?,
