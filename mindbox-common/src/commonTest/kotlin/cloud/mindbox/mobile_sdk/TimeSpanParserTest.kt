@@ -114,7 +114,7 @@ class TimeSpanParserTest {
     }
 
     @Test
-    fun `parseMillisToTimeSpan adr example 225ms`() {
+    fun `parseMillisToTimeSpan 225ms`() {
         assertEquals("0:00:00:00.2250000", 225L.millisToTimeSpan())
     }
 
