@@ -36,7 +36,38 @@ internal object TimeSpanParser {
 
         return if (sign == "-") duration.inWholeMilliseconds * -1 else duration.inWholeMilliseconds
     }
+
+    internal fun formatMillisAsTimeSpan(timeInMillis: Long): String {
+        val millis = timeInMillis.coerceAtLeast(0L)
+        val totalSeconds = millis / MILLIS_PER_SECOND
+        val remainderMillis = (millis % MILLIS_PER_SECOND) * FRACTION_SCALE
+        val fractionStr = remainderMillis.toString().padStart(FRACTION_DIGITS, '0')
+        val days = totalSeconds / SECONDS_PER_DAY
+        val hours = (totalSeconds % SECONDS_PER_DAY) / SECONDS_PER_HOUR
+        val minutes = (totalSeconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
+        val seconds = totalSeconds % SECONDS_PER_MINUTE
+        return buildString {
+            append(days)
+            append(':')
+            append(hours.toString().padStart(2, '0'))
+            append(':')
+            append(minutes.toString().padStart(2, '0'))
+            append(':')
+            append(seconds.toString().padStart(2, '0'))
+            append('.')
+            append(fractionStr)
+        }
+    }
+
+    private const val MILLIS_PER_SECOND = 1000L
+    private const val SECONDS_PER_MINUTE = 60
+    private const val SECONDS_PER_HOUR = 3600
+    private const val SECONDS_PER_DAY = 86400
+    private const val FRACTION_SCALE = 10_000L
+    private const val FRACTION_DIGITS = 7
 }
 
 @Throws(IllegalArgumentException::class)
 public fun String.parseTimeSpanToMillis(): Long = TimeSpanParser.parseToMillis(this)
+
+public fun Long.millisToTimeSpan(): String = TimeSpanParser.formatMillisAsTimeSpan(this)

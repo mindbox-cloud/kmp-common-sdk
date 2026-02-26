@@ -3,6 +3,7 @@ package cloud.mindbox.mobile_sdk
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class TimeSpanParserTest {
     @Test
@@ -105,5 +106,72 @@ class TimeSpanParserTest {
         assertEquals(321930500, "3.17:25:30.5000000".parseTimeSpanToMillis())
         assertEquals(0, "00:00:00".parseTimeSpanToMillis())
         assertEquals(-123, "-00:00:00.123".parseTimeSpanToMillis())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan zero`() {
+        assertEquals("0:00:00:00.0000000", 0L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan adr example 225ms`() {
+        assertEquals("0:00:00:00.2250000", 225L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan milliseconds fraction`() {
+        assertEquals("0:00:00:00.0010000", 1L.millisToTimeSpan())
+        assertEquals("0:00:00:00.1000000", 100L.millisToTimeSpan())
+        assertEquals("0:00:00:00.9990000", 999L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan whole seconds`() {
+        assertEquals("0:00:00:01.0000000", 1_000L.millisToTimeSpan())
+        assertEquals("0:00:00:59.0000000", 59_000L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan minutes`() {
+        assertEquals("0:00:01:00.0000000", 60_000L.millisToTimeSpan())
+        assertEquals("0:00:59:59.0000000", 3_599_000L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan hours`() {
+        assertEquals("0:01:00:00.0000000", 3_600_000L.millisToTimeSpan())
+        assertEquals("0:23:59:59.0000000", 86_399_000L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan days`() {
+        assertEquals("1:00:00:00.0000000", 86_400_000L.millisToTimeSpan())
+        assertEquals("3:17:25:30.5000000", 321_930_500L.millisToTimeSpan())
+        assertEquals("1:01:01:01.1000000", 90_061_100L.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan negative values coerced to zero`() {
+        assertEquals("0:00:00:00.0000000", (-1L).millisToTimeSpan())
+        assertEquals("0:00:00:00.0000000", (-999L).millisToTimeSpan())
+        assertEquals("0:00:00:00.0000000", Long.MIN_VALUE.millisToTimeSpan())
+    }
+
+    @Test
+    fun `parseMillisToTimeSpan output matches expected structure`() {
+        val structureRegex = Regex("""\d+:\d{2}:\d{2}:\d{2}\.\d{7}""")
+        val inputCases = listOf(
+            0L,
+            225L,
+            1_000L,
+            3_600_000L,
+            86_400_000L,
+            321_930_500L,
+            90_061_100L,
+        )
+        for (inputMs in inputCases) {
+            val result = inputMs.millisToTimeSpan()
+            assertTrue(structureRegex.matches(result), "Bad format for ${inputMs}ms: '$result'")
+        }
     }
 }
