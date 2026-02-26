@@ -29,6 +29,8 @@ public fun interface WebViewJsBridge {
 public interface WebViewEventListener {
     public fun onPageFinished(url: String?)
 
+    public fun onShouldOverrideUrlLoading(url: String?, isForMainFrame: Boolean?): Boolean = false
+
     public fun onError(error: WebViewError) {
     }
 }
