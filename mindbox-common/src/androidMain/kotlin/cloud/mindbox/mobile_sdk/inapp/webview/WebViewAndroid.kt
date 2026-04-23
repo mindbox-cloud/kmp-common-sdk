@@ -6,6 +6,7 @@ import android.os.Build
 import android.view.View
 import android.webkit.*
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
+import java.io.ByteArrayInputStream
 
 @InternalMindboxApi
 public actual typealias WebViewPlatformView = View
@@ -120,6 +121,43 @@ private class AndroidWebViewController(
                     url = request?.url?.toString(),
                     isForMainFrame = request?.isForMainFrame,
                 ) ?: false
+            }
+
+            // Invoked on a worker thread for every subresource request. Delegate to the
+            // event listener so feature-specific caches (webview asset cache) can serve
+            // bytes from disk without touching the network. Returning null falls through
+            // to the default WebView behavior.
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): WebResourceResponse? {
+                val url: String = request?.url?.toString() ?: return null
+                val cached: WebViewCachedResource = eventListener?.onShouldInterceptRequest(url)
+                    ?: return null
+                return buildResponse(cached)
+            }
+
+            @Deprecated("Deprecated in Java")
+            @Suppress("DEPRECATION")
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                url: String?
+            ): WebResourceResponse? {
+                if (url.isNullOrEmpty()) return null
+                val cached: WebViewCachedResource = eventListener?.onShouldInterceptRequest(url)
+                    ?: return null
+                return buildResponse(cached)
+            }
+
+            private fun buildResponse(cached: WebViewCachedResource): WebResourceResponse {
+                return WebResourceResponse(
+                    cached.mimeType,
+                    cached.encoding,
+                    cached.statusCode,
+                    cached.reasonPhrase,
+                    cached.extraHeaders.takeIf { it.isNotEmpty() },
+                    ByteArrayInputStream(cached.bytes)
+                )
             }
 
             @Deprecated("Deprecated in Java")
