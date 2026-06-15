@@ -6,29 +6,33 @@ on:
       branch:
         required: true
         type: string
- 
+    secrets:
+      PAT_TOKEN:
+        required: true
+      PAT_FOR_TRIGGERING_BRANCH_PROTECTION:
+        required: true
+
+permissions:
+  contents: read
+
 jobs:
   checks:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 2
-          
+
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
       - name: Setup Common SDK
-        uses: android-actions/setup-android@v2
-
-      - name: Run ktlintCheck on changed files
-        if: steps.get_changed_files.outputs.CHANGED_FILES != ''
-        run: ./gradlew ktlintCheck -PinternalKtlintGitFilter="${{ steps.get_changed_files.outputs.CHANGED_FILES }}"
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
 
       - name: lint check
         run: ./gradlew --no-daemon lintDebug
@@ -42,31 +46,43 @@ jobs:
   set-tag:
     needs: [checks]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.extract_version.outputs.sdk_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
       - name: Extract SDK version
         id: extract_version
         run: |
           SDK_VERSION=$(grep '^SDK_VERSION_NAME=' gradle.properties | cut -d '=' -f2)
-          echo "Extracted SDK version: ${SDK_VERSION}"
-          echo "sdk_version=${SDK_VERSION}" >> $GITHUB_OUTPUT
-          echo "SDK_VERSION=${SDK_VERSION}" >> $GITHUB_ENV
+          echo "Extracted SDK version: $SDK_VERSION"
+          echo "sdk_version=$SDK_VERSION" >> "$GITHUB_OUTPUT"
+          echo "SDK_VERSION=$SDK_VERSION" >> "$GITHUB_ENV"
       - name: Create tag
         run: |
-          git tag "${{ env.SDK_VERSION }}"
-          git push origin "${{ env.SDK_VERSION }}"
-          
+          if git rev-parse -q --verify "refs/tags/$SDK_VERSION" >/dev/null; then
+            echo "Local tag $SDK_VERSION already exists."
+          else
+            git tag "$SDK_VERSION"
+          fi
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$SDK_VERSION")" ]; then
+            echo "Remote tag $SDK_VERSION already exists."
+          else
+            git push origin "$SDK_VERSION"
+          fi
+
   release-github:
     needs: [set-tag]
     runs-on: macos-26
+    permissions:
+      contents: write
     outputs:
       tag: ${{ needs.set-tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
       - name: Build XCFramework
@@ -75,30 +91,35 @@ jobs:
         run: ./.github/git-release-ci.sh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ inputs.branch }}
       - name: Verify framework existence
         run: ls -R mindbox-common/build/XCFrameworks/release
       - name: Upload XCFramework to release
-        run: |
-          gh release upload ${{ needs.set-tag.outputs.tag }} \
-          mindbox-common/build/XCFrameworks/release/MindboxCommon.xcframework.zip \
-          --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.set-tag.outputs.tag }}
+        run: |
+          gh release upload "$TAG" \
+            mindbox-common/build/XCFrameworks/release/MindboxCommon.xcframework.zip \
+            --clobber
 
   trigger-kmp-common-spm:
     needs: [release-github]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger workflow in repo B
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+          TAG: ${{ needs.release-github.outputs.tag }}
         run: |
           echo "Triggering workflow in repo KMP-COMMON-SDK-SPM..."
-          echo "TAG=${{ needs.release-github.outputs.tag }}"
+          echo "TAG=$TAG"
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+            -H "Authorization: Bearer $PAT_TOKEN" \
             https://api.github.com/repos/mindbox-cloud/kmp-common-sdk-spm/dispatches \
-            -d "{\"event_type\": \"download_xcframework\", \"client_payload\": {\"version\": \"${{ needs.release-github.outputs.tag }}\"}}"
-            
+            -d "{\"event_type\": \"download_xcframework\", \"client_payload\": {\"version\": \"$TAG\"}}"
+
   merge:
     needs: [trigger-kmp-common-spm]
     if: startsWith(github.head_ref, 'release/') && github.base_ref == 'master'
@@ -107,7 +128,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.PAT_FOR_TRIGGERING_BRANCH_PROTECTION }}
     steps:
       - name: Checkout develop branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: develop
       - name: Create Pull Request
@@ -115,4 +136,4 @@ jobs:
       - name: Merge Pull Request
         run: |
           pr_number=$(gh pr list --base develop --head master --json number --jq '.[0].number')
-          gh pr merge $pr_number --merge --auto
+          gh pr merge "$pr_number" --merge --auto

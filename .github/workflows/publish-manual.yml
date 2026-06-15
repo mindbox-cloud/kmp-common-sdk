@@ -4,20 +4,29 @@ name: 2. Manual Github Release
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check-branch:
     runs-on: ubuntu-latest
     steps:
       - name: Check if branch matches pattern
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if ! echo "${{ github.ref_name }}" | grep -q "release/"; then
+          if ! echo "$REF_NAME" | grep -q "release/"; then
             echo "Branch name must match pattern 'release' (e.g. release/2.13.2)"
             exit 1
           fi
 
   call-publish-reusable:
     needs: check-branch
+    permissions:
+      contents: write
     uses: ./.github/workflows/publish-reusable.yml
     with:
       branch: ${{ github.ref_name }}
-    secrets: inherit
+    secrets:
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+      PAT_FOR_TRIGGERING_BRANCH_PROTECTION: ${{ secrets.PAT_FOR_TRIGGERING_BRANCH_PROTECTION }}
