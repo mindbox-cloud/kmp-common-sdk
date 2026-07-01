@@ -37,6 +37,7 @@ private class AndroidWebViewController(
         get() = webView
 
     override fun loadContent(content: WebViewHtmlContent) {
+        if (MindboxWebViewLab.PROFILER) MbWvProfiler.begin() // MEASUREMENT (throwaway): t0
         webView.loadDataWithBaseURL(
             content.baseUrl,
             content.html,
@@ -59,7 +60,9 @@ private class AndroidWebViewController(
                 return@executeOnViewThread
             }
             webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
-            webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+            // MEASUREMENT (throwaway): cache toggle — mirror configureWebView().
+            webView.settings.cacheMode =
+                if (MindboxWebViewLab.PERSISTENT_CACHE) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
         }
     }
 
@@ -103,10 +106,15 @@ private class AndroidWebViewController(
             builtInZoomControls = true
             displayZoomControls = false
             defaultTextEncodingName = "utf-8"
-            cacheMode = WebSettings.LOAD_NO_CACHE
+            // MEASUREMENT (throwaway): LOAD_NO_CACHE (current) <-> LOAD_DEFAULT (persistent cache).
+            cacheMode =
+                if (MindboxWebViewLab.PERSISTENT_CACHE) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
             allowContentAccess = true
         }
         webView.setBackgroundColor(Color.TRANSPARENT)
+        if (MindboxWebViewLab.PROFILER) {
+            webView.addJavascriptInterface(MbProfilerBridge(), "MBProfiler") // MEASUREMENT (throwaway)
+        }
     }
 
     private fun createWebViewClient(): WebViewClient {
@@ -173,6 +181,10 @@ private class AndroidWebViewController(
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                if (MindboxWebViewLab.PROFILER) {
+                    MbWvProfiler.mark("navFinish") // MEASUREMENT (throwaway)
+                    view?.evaluateJavascript(MbWvProfiler.probeJs, null)
+                }
                 eventListener?.onPageFinished(url)
             }
         }
