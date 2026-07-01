@@ -3,6 +3,8 @@ package cloud.mindbox.mobile_sdk.inapp.webview
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.webkit.*
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
@@ -18,6 +20,10 @@ public fun WebViewController.Companion.create(
     return AndroidWebViewController(context, isDebugEnabled)
 }
 
+// Upper bound on waiting for a renderer that never answers an in-flight
+// evaluateJavascript; the drained case destroys as soon as the last callback lands.
+private const val DESTROY_DRAIN_TIMEOUT_MS = 1_000L
+
 @OptIn(InternalMindboxApi::class)
 private class AndroidWebViewController(
     context: android.content.Context,
@@ -26,6 +32,13 @@ private class AndroidWebViewController(
 
     private val webView: WebView = WebView(context)
     private var eventListener: WebViewEventListener? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // All three main-thread confined: mutated only inside blocks running on [mainHandler]
+    // (posts from background threads run their check on the main looper too).
+    private var pendingEvaluateCallbacks = 0
+    private var isDestroyRequested = false
+    private var isDestroyed = false
 
     init {
         WebView.setWebContentsDebuggingEnabled(isDebugEnabled)
@@ -37,6 +50,7 @@ private class AndroidWebViewController(
         get() = webView
 
     override fun loadContent(content: WebViewHtmlContent) {
+        if (MindboxWebViewLab.PROFILER) MbWvProfiler.begin() // MEASUREMENT (throwaway): t0
         webView.loadDataWithBaseURL(
             content.baseUrl,
             content.html,
@@ -59,7 +73,6 @@ private class AndroidWebViewController(
                 return@executeOnViewThread
             }
             webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
-            webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         }
     }
 
@@ -74,24 +87,64 @@ private class AndroidWebViewController(
         eventListener = listener
     }
 
+    // NOT View.post: on a detached view (onClose removes the view from its parent before
+    // calling destroy) View.post lands in the view's HandlerActionQueue, which drains only
+    // on the next attach — queued work, including destroy() itself, would never run and
+    // every closed in-app would leak a live WebView with its page JS still executing.
     override fun executeOnViewThread(action: () -> Unit) {
-        webView.post(action)
+        mainHandler.post {
+            if (isDestroyRequested) return@post
+            action()
+        }
     }
 
     override fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?) {
         executeOnViewThread {
-            webView.evaluateJavascript(js, resultCallback)
+            if (resultCallback == null) {
+                webView.evaluateJavascript(js, null)
+            } else {
+                pendingEvaluateCallbacks++
+                webView.evaluateJavascript(js) { result ->
+                    pendingEvaluateCallbacks--
+                    resultCallback(result)
+                    completeDestroyIfDrained()
+                }
+            }
         }
     }
 
+    /**
+     * Destroy waits for in-flight [evaluateJavaScript] result callbacks by design: the
+     * evaluate call executes before the destroy request (FIFO on the main looper), but its
+     * result comes back from the renderer asynchronously — destroying at once would drop
+     * it (concretely: the learned-hosts capture queued right before close). New work is
+     * refused from here; the timeout only bounds a renderer that never answers.
+     */
     override fun destroy() {
-        executeOnViewThread{
-            webView.stopLoading()
+        mainHandler.post {
+            if (isDestroyRequested) return@post
+            isDestroyRequested = true
+            runCatching { webView.stopLoading() }
+            mainHandler.postDelayed(::completeDestroy, DESTROY_DRAIN_TIMEOUT_MS)
+            completeDestroyIfDrained()
+        }
+    }
+
+    private fun completeDestroyIfDrained() {
+        if (isDestroyRequested && pendingEvaluateCallbacks == 0) completeDestroy()
+    }
+
+    private fun completeDestroy() {
+        if (isDestroyed) return
+        isDestroyed = true
+        runCatching {
             webView.loadUrl("about:blank")
             webView.clearHistory()
             webView.removeAllViews()
-            webView.destroy()
         }
+        // Destroy separately: a failure in the cosmetic cleanup above must never leak
+        // the renderer by skipping the one call that actually frees it.
+        runCatching { webView.destroy() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -103,10 +156,15 @@ private class AndroidWebViewController(
             builtInZoomControls = true
             displayZoomControls = false
             defaultTextEncodingName = "utf-8"
-            cacheMode = WebSettings.LOAD_NO_CACHE
+            // Persistent HTTP cache: in-app resources are revalidated/served per the CDN's
+            // cache headers instead of being re-downloaded on every show.
+            cacheMode = WebSettings.LOAD_DEFAULT
             allowContentAccess = true
         }
         webView.setBackgroundColor(Color.TRANSPARENT)
+        if (MindboxWebViewLab.PROFILER) {
+            webView.addJavascriptInterface(MbProfilerBridge(), "MBProfiler") // MEASUREMENT (throwaway)
+        }
     }
 
     private fun createWebViewClient(): WebViewClient {
@@ -125,10 +183,12 @@ private class AndroidWebViewController(
             @Deprecated("Deprecated in Java")
             @Suppress("DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                val isForMainFrame: Boolean = url == view?.originalUrl
+                // The String overload can't tell frames apart (comparing against originalUrl
+                // is false for any NEW url — exactly the navigations the lock must catch).
+                // Treat everything as main-frame so the lock actually holds on API < 24.
                 return eventListener?.onShouldOverrideUrlLoading(
                     url = url,
-                    isForMainFrame = isForMainFrame,
+                    isForMainFrame = true,
                 ) ?: false
             }
 
@@ -173,6 +233,10 @@ private class AndroidWebViewController(
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                if (MindboxWebViewLab.PROFILER) {
+                    MbWvProfiler.mark("navFinish") // MEASUREMENT (throwaway)
+                    view?.evaluateJavascript(MbWvProfiler.probeJs, null)
+                }
                 eventListener?.onPageFinished(url)
             }
         }
