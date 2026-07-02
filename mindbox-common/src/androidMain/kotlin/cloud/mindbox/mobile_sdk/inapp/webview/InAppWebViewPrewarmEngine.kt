@@ -28,6 +28,12 @@ public class InAppWebViewPrewarmEngine(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
 
+    // Set synchronously in [abort] — BEFORE the release is posted — so a load block that was
+    // already posted from a background thread can never resurrect the WebView after a real
+    // show has taken the network over.
+    @Volatile
+    private var isAborted = false
+
     /** Loads the preconnect page under [baseUrl] (the show's cache partition). */
     public fun loadPreconnectPage(html: String, baseUrl: String, userAgentSuffix: String?) {
         mainHandler.post {
@@ -65,7 +71,7 @@ public class InAppWebViewPrewarmEngine(
         }
     }
 
-    /** Stops and destroys the prewarm WebView (started downloads are abandoned). */
+    /** Stops and destroys the prewarm WebView; a later prewarm may create a fresh one. */
     public fun release() {
         mainHandler.post {
             val view = webView ?: return@post
@@ -81,8 +87,18 @@ public class InAppWebViewPrewarmEngine(
         }
     }
 
+    /**
+     * Terminal [release]: additionally refuses every future page load. Call when a real
+     * show starts — from that point the prewarm must never touch the network again.
+     */
+    public fun abort() {
+        isAborted = true
+        release()
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun ensureWebView(userAgentSuffix: String?): WebView? {
+        if (isAborted) return null
         webView?.let { return it }
         return runCatching {
             WebView(appContext).apply {

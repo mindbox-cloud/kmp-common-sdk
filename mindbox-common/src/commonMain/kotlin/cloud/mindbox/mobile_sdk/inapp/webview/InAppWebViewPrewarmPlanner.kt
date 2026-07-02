@@ -47,7 +47,9 @@ public object InAppWebViewPrewarmPlanner {
         val baseUrl = page.baseUrl ?: return null
         val contentUrl = page.contentUrl ?: return null
 
-        val origins = (layers.flatMap { listOf(it.contentUrl, it.baseUrl) } + extraOrigins)
+        // contentUrl hosts only: baseUrl is just the cache partition and is typically a
+        // synthetic host nothing ever connects to — preconnecting it wastes a DNS lookup.
+        val origins = (layers.map { it.contentUrl } + extraOrigins)
             .mapNotNull { httpsOrigin(it) }
             .distinct()
             .sorted()

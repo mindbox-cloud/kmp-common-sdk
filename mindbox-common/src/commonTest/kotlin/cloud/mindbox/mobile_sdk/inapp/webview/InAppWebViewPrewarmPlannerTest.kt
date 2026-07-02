@@ -61,7 +61,6 @@ class InAppWebViewPrewarmPlannerTest {
         assertEquals(
             listOf(
                 "https://api.mindbox.ru",
-                "https://inapp.local",
                 "https://mobile-static.mindbox.ru",
                 "https://other-static.mindbox.ru",
                 "https://web-static.mindbox.ru"
@@ -94,9 +93,18 @@ class InAppWebViewPrewarmPlannerTest {
 
         assertNotNull(plan)
         assertEquals(
-            listOf("https://fonts.gstatic.com", "https://inapp.local", "https://mobile-static.mindbox.ru"),
+            listOf("https://fonts.gstatic.com", "https://mobile-static.mindbox.ru"),
             plan.preconnectOrigins
         )
+    }
+
+    @Test
+    fun testBuildPlan_baseUrlHostIsNotPreconnected() {
+        val plan = InAppWebViewPrewarmPlanner.buildPlan(layers = listOf(layer))
+
+        assertNotNull(plan)
+        assertEquals("https://inapp.local/popup", plan.baseUrl)
+        assertEquals(listOf("https://mobile-static.mindbox.ru"), plan.preconnectOrigins)
     }
 
     @Test
