@@ -1,76 +1,26 @@
 package cloud.mindbox.mobile_sdk.inapp.webview
 
-import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.webkit.JavascriptInterface
-import android.webkit.WebSettings
-import android.webkit.WebView
 import org.json.JSONObject
 
 /**
- * MEASUREMENT / THROWAWAY — WebView cache + prewarm prototype.
+ * MEASUREMENT / THROWAWAY — WebView show-time measurement switches.
  *
- * Android analog of the iOS `WebViewShowProfiler`. Compile-time flags so they can be flipped in code
- * (as requested) and rebuilt. Default = full stack ON (to feel it on device). Set a flag to `false`
- * to restore current behavior. REMOVE this file + call sites before any ship.
- *
- * Levers (mirror iOS):
- *  - [PERSISTENT_CACHE]: `WebSettings.cacheMode` `LOAD_NO_CACHE` (current) -> `LOAD_DEFAULT` (cache on).
- *  - [PREWARM]: warm the WebView renderer process at SDK start (framework-only; the androidx.webkit
- *    1.16.0 `ProcessGlobalConfig.startUpWebView` variant lives in the optional module).
- *  - [PROFILER]: emit `[WVProfile]` show-time marks to logcat (tag `MBWV`).
+ * The production levers (persistent cache + config-driven prewarm) live in
+ * `AndroidWebViewController` / `InAppWebViewPrewarmEngine` and are always on; this
+ * object only carries compile-time switches for A/B measurement runs and the
+ * `[WVProfile]` logcat profiler. REMOVE this file + call sites before any ship.
  */
 public object MindboxWebViewLab {
-    // Optimal Android config: cache (the win) + preconnect (warms CDN connections for show #1).
-    public const val PERSISTENT_CACHE: Boolean = true  // baseline->cache: show1 4584->972, show2 841->232
-    public const val PREWARM: Boolean = true           // preconnect variant: show1 972->~532
-    public const val PROFILER: Boolean = false         // measurement off for the clean/optimal APK
+    /** Emit `[WVProfile]` show-time marks to logcat (tag `MBWV`). */
+    public const val PROFILER: Boolean = false
 
-    private var warmWebView: WebView? = null
+    /** Gates the PRODUCTION prewarm for A/B runs: false -> cache-only baseline. */
+    public const val PREWARM_ENABLED: Boolean = true
 
-    /**
-     * MEASUREMENT (throwaway) prewarm — PRECONNECT variant. At SDK start, create a hidden [WebView] that
-     * loads a page with ONLY `<link rel=preconnect>`/`<link rel=dns-prefetch>` to the CDN hosts — NO heavy
-     * download. This warms both the shared Chromium renderer process AND its connection pool (DNS+TCP+TLS)
-     * to the CDNs, which the real in-app WebViews reuse (Chromium's network service is process-wide). It
-     * targets show #1's ACTUAL bottleneck — images loading over COLD connections — which process-only
-     * warm (`about:blank`) didn't fix and a full cacher made worse (bandwidth contention). Idempotent; main thread.
-     */
-    public fun prewarm(context: Context) {
-        if (!PREWARM) return
-        Handler(Looper.getMainLooper()).post {
-            if (warmWebView != null) return@post
-            runCatching {
-                val t0 = System.nanoTime()
-                val wv = WebView(context.applicationContext)
-                wv.settings.cacheMode =
-                    if (PERSISTENT_CACHE) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
-                wv.loadDataWithBaseURL("https://inapp.local/popup", preconnectHtml(), "text/html", "UTF-8", null)
-                warmWebView = wv
-                val ms = (System.nanoTime() - t0) / 1_000_000
-                Log.i("MBWV", "[WVProfile] prewarm(preconnect): warm WebView created createMs=$ms")
-            }.onFailure { Log.i("MBWV", "[WVProfile] prewarm failed: $it") }
-        }
-    }
-
-    // Preconnect-only page: warms Chromium's connection pool to the CDN hosts without downloading.
-    private fun preconnectHtml(): String {
-        val hosts = listOf(
-            "https://web-static.mindbox.ru",
-            "https://api.mindbox.ru",
-            "https://mobile-static.mindbox.ru",
-            "https://personalization-web.g.mindbox.ru",      // actual image host (from byendpoint)
-            "https://personalization-web-stable.mindbox.ru", // actual image host (from byendpoint)
-            "https://fonts.googleapis.com",
-            "https://fonts.gstatic.com",
-        )
-        val links = hosts.joinToString("") {
-            "<link rel=\"preconnect\" href=\"$it\" crossorigin><link rel=\"dns-prefetch\" href=\"$it\">"
-        }
-        return "<html><head><meta charset=\"utf-8\">$links</head><body></body></html>"
-    }
+    /** Skip the content page: preconnect-only prewarm (the previous measured optimum). */
+    public const val PREWARM_PRECONNECT_ONLY: Boolean = false
 }
 
 /**
@@ -125,8 +75,8 @@ internal object MbWvProfiler {
             }.getOrElse { "jsParseError=$it" }
             Log.i(
                 TAG,
-                "[WVProfile] SUMMARY cache=${MindboxWebViewLab.PERSISTENT_CACHE} " +
-                    "prewarm=${MindboxWebViewLab.PREWARM} | NATIVE $native | JS(doc-rel) $js",
+                "[WVProfile] SUMMARY prewarm=${MindboxWebViewLab.PREWARM_ENABLED} " +
+                    "preconnectOnly=${MindboxWebViewLab.PREWARM_PRECONNECT_ONLY} | NATIVE $native | JS(doc-rel) $js",
             )
         }
     }

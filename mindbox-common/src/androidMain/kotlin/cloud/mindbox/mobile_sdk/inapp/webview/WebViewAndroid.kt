@@ -60,9 +60,6 @@ private class AndroidWebViewController(
                 return@executeOnViewThread
             }
             webView.settings.userAgentString = "$currentUserAgent $suffix".trim()
-            // MEASUREMENT (throwaway): cache toggle — mirror configureWebView().
-            webView.settings.cacheMode =
-                if (MindboxWebViewLab.PERSISTENT_CACHE) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
         }
     }
 
@@ -106,9 +103,9 @@ private class AndroidWebViewController(
             builtInZoomControls = true
             displayZoomControls = false
             defaultTextEncodingName = "utf-8"
-            // MEASUREMENT (throwaway): LOAD_NO_CACHE (current) <-> LOAD_DEFAULT (persistent cache).
-            cacheMode =
-                if (MindboxWebViewLab.PERSISTENT_CACHE) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
+            // Persistent HTTP cache: in-app resources are revalidated/served per the CDN's
+            // cache headers instead of being re-downloaded on every show.
+            cacheMode = WebSettings.LOAD_DEFAULT
             allowContentAccess = true
         }
         webView.setBackgroundColor(Color.TRANSPARENT)
