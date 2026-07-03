@@ -83,6 +83,36 @@ public object InAppWebViewPrewarmPlanner {
     }
 
     /**
+     * The official prewarm contract with the web runtime: the prewarm content page is
+     * loaded with these parameters on its document URL (`loadDataWithBaseURL` baseUrl →
+     * `location.search`), and a runtime that knows the contract boots tracker-only — no
+     * `ready` handshake, no form, byendpoint straight into the HTTP cache. Runtimes that
+     * predate the contract ignore the parameters and fall back to the legacy stub bridge
+     * attached alongside. Real shows never get these parameters.
+     */
+    public fun prewarmContentBaseUrl(baseUrl: String, endpointId: String, deviceUuid: String): String {
+        val separator = if ('?' in baseUrl) '&' else '?'
+        return baseUrl + separator +
+            "prewarm=1" +
+            "&endpointId=" + encodeQueryValue(endpointId) +
+            "&deviceUuid=" + encodeQueryValue(deviceUuid)
+    }
+
+    /** RFC 3986 percent-encoding for a query value (unreserved characters pass through). */
+    private fun encodeQueryValue(value: String): String = buildString {
+        value.encodeToByteArray().forEach { byte ->
+            // Only ASCII bytes can be unreserved; non-ASCII UTF-8 bytes are negative here.
+            val char = if (byte >= 0) byte.toInt().toChar() else null
+            if (char != null && (char.isLetterOrDigit() || char in "-._~")) {
+                append(char)
+            } else {
+                append('%')
+                append(((byte.toInt() and 0xFF) or 0x100).toString(16).substring(1).uppercase())
+            }
+        }
+    }
+
+    /**
      * A page with only `<link rel=preconnect>`/`<link rel=dns-prefetch>` hints: warms
      * DNS+TCP+TLS to [origins] without downloading anything.
      */

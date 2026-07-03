@@ -62,7 +62,7 @@ public class InAppWebViewPrewarmEngine(
             runCatching {
                 val view = ensureWebView(userAgentSuffix) ?: return@post
                 view.addJavascriptInterface(
-                    PrewarmLegacyParamBridge(endpointId, deviceUuid),
+                    PrewarmLegacyParamBridge(endpointId, deviceUuid, log),
                     DEFAULT_WEBVIEW_BRIDGE_NAME
                 )
                 view.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
@@ -124,13 +124,19 @@ public class InAppWebViewPrewarmEngine(
      */
     private class PrewarmLegacyParamBridge(
         private val endpointId: String,
-        private val deviceUuid: String
+        private val deviceUuid: String,
+        private val log: (String) -> Unit
     ) {
         @JavascriptInterface
-        fun receiveParam(param: String?): String = when (param) {
-            "endpointId" -> endpointId
-            "deviceUuid" -> deviceUuid
-            else -> ""
+        fun receiveParam(param: String?): String {
+            // A page on the official prewarm contract never asks the stub — this log line
+            // is the observable "page took the LEGACY prewarm path" signal.
+            log("legacy stub receiveParam($param)")
+            return when (param) {
+                "endpointId" -> endpointId
+                "deviceUuid" -> deviceUuid
+                else -> ""
+            }
         }
 
         @JavascriptInterface
