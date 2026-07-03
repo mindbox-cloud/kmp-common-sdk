@@ -108,6 +108,30 @@ class InAppWebViewPrewarmPlannerTest {
     }
 
     @Test
+    fun testPrewarmContentBaseUrl_appendsContractParams() {
+        assertEquals(
+            "https://inapp.local/popup?prewarm=1&endpointId=Mpush-test.WebView&deviceUuid=abc-123",
+            InAppWebViewPrewarmPlanner.prewarmContentBaseUrl(
+                baseUrl = "https://inapp.local/popup",
+                endpointId = "Mpush-test.WebView",
+                deviceUuid = "abc-123"
+            )
+        )
+    }
+
+    @Test
+    fun testPrewarmContentBaseUrl_keepsExistingQueryAndEncodes() {
+        assertEquals(
+            "https://inapp.local/popup?keep=me&prewarm=1&endpointId=End%20point%26x&deviceUuid=%D1%8E%D0%B8%D0%B4",
+            InAppWebViewPrewarmPlanner.prewarmContentBaseUrl(
+                baseUrl = "https://inapp.local/popup?keep=me",
+                endpointId = "End point&x",
+                deviceUuid = "юид"
+            )
+        )
+    }
+
+    @Test
     fun testPreconnectHtml_linksPerOriginNoScripts() {
         val html = InAppWebViewPrewarmPlanner.preconnectHtml(
             listOf("https://a.ru", "https://b.ru")
