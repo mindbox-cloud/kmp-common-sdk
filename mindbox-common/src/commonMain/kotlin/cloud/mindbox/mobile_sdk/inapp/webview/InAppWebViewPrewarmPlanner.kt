@@ -87,8 +87,8 @@ public object InAppWebViewPrewarmPlanner {
      * loaded with these parameters on its document URL (`loadDataWithBaseURL` baseUrl →
      * `location.search`), and a runtime that knows the contract boots tracker-only — no
      * `ready` handshake, no form, byendpoint straight into the HTTP cache. Runtimes that
-     * predate the contract ignore the parameters and fall back to the legacy stub bridge
-     * attached alongside. Real shows never get these parameters.
+     * predate the contract ignore the parameters, degrading the prewarm to a plain page
+     * warm. Real shows never get these parameters.
      */
     public fun prewarmContentBaseUrl(baseUrl: String, endpointId: String, deviceUuid: String): String {
         val separator = if ('?' in baseUrl) '&' else '?'

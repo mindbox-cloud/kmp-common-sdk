@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
@@ -46,27 +45,17 @@ public class InAppWebViewPrewarmEngine(
     }
 
     /**
-     * Loads the real content page under [baseUrl] with a legacy-contract stub bridge:
-     * the page detects `SdkBridge.receiveParam`, answers `ready` locally with
-     * [endpointId]/[deviceUuid] and an empty popUpId, boots the runtime (tracker →
-     * byendpoint into the HTTP cache) and renders no form. Nothing reaches the SDK.
+     * Loads the real content page under [baseUrl] (which carries the official prewarm
+     * params): a runtime that knows the contract boots tracker-only and pulls byendpoint
+     * into the shared HTTP cache; an older runtime ignores the params and the load
+     * degrades to a plain page warm. Nothing reaches the SDK either way.
      */
-    public fun loadContentPage(
-        html: String,
-        baseUrl: String,
-        endpointId: String,
-        deviceUuid: String,
-        userAgentSuffix: String?
-    ) {
+    public fun loadContentPage(html: String, baseUrl: String, userAgentSuffix: String?) {
         mainHandler.post {
             runCatching {
                 val view = ensureWebView(userAgentSuffix) ?: return@post
-                view.addJavascriptInterface(
-                    PrewarmLegacyParamBridge(endpointId, deviceUuid, log),
-                    DEFAULT_WEBVIEW_BRIDGE_NAME
-                )
                 view.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
-                log("content page loaded under $baseUrl for endpoint $endpointId")
+                log("content page loaded under $baseUrl")
             }.onFailure { error -> log("content page failed: $error") }
         }
     }
@@ -117,32 +106,4 @@ public class InAppWebViewPrewarmEngine(
             ?.also { created -> webView = created }
     }
 
-    /**
-     * Legacy SDK bridge contract (`window.SdkBridge.receiveParam`): the page treats its
-     * presence as "legacy SDK" and never awaits a native `ready` response. An empty
-     * popUpId means the runtime initializes without rendering any form.
-     */
-    private class PrewarmLegacyParamBridge(
-        private val endpointId: String,
-        private val deviceUuid: String,
-        private val log: (String) -> Unit
-    ) {
-        @JavascriptInterface
-        fun receiveParam(param: String?): String {
-            // A page on the official prewarm contract never asks the stub — this log line
-            // is the observable "page took the LEGACY prewarm path" signal.
-            log("legacy stub receiveParam($param)")
-            return when (param) {
-                "endpointId" -> endpointId
-                "deviceUuid" -> deviceUuid
-                else -> ""
-            }
-        }
-
-        @JavascriptInterface
-        @Suppress("UNUSED_PARAMETER")
-        fun postMessage(message: String?) {
-            // Prewarm sink: a prewarm page must never reach the real SDK bridge.
-        }
-    }
 }
