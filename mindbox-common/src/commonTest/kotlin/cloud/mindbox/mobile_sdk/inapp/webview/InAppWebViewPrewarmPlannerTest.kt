@@ -132,6 +132,37 @@ class InAppWebViewPrewarmPlannerTest {
     }
 
     @Test
+    fun testPrewarmContentBaseUrl_paramsLandInQueryNotFragment() {
+        // Appended after '#' the params would live in the fragment and location.search
+        // would stay empty — the contract would silently degrade to a plain page warm.
+        assertEquals(
+            "https://inapp.local/popup?prewarm=1&endpointId=E&deviceUuid=d#main",
+            InAppWebViewPrewarmPlanner.prewarmContentBaseUrl(
+                baseUrl = "https://inapp.local/popup#main",
+                endpointId = "E",
+                deviceUuid = "d"
+            )
+        )
+        assertEquals(
+            "https://inapp.local/popup?keep=me&prewarm=1&endpointId=E&deviceUuid=d#f",
+            InAppWebViewPrewarmPlanner.prewarmContentBaseUrl(
+                baseUrl = "https://inapp.local/popup?keep=me#f",
+                endpointId = "E",
+                deviceUuid = "d"
+            )
+        )
+    }
+
+    @Test
+    fun testHttpsOrigin_rejectsMarkupCharactersInAuthority() {
+        // Origins are interpolated into preconnect HTML attributes — a corrupt config
+        // value must never be able to become markup.
+        assertNull(InAppWebViewPrewarmPlanner.httpsOrigin("https://x\"><script>evil</script>"))
+        assertNull(InAppWebViewPrewarmPlanner.httpsOrigin("evil.example\"><link>"))
+        assertNull(InAppWebViewPrewarmPlanner.httpsOrigin("https://host<img>.ru"))
+    }
+
+    @Test
     fun testPreconnectHtml_linksPerOriginNoScripts() {
         val html = InAppWebViewPrewarmPlanner.preconnectHtml(
             listOf("https://a.ru", "https://b.ru")
