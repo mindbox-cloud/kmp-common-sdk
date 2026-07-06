@@ -154,6 +154,16 @@ class InAppWebViewPrewarmPlannerTest {
     }
 
     @Test
+    fun testHttpsOrigin_hostCharsetIsAsciiPlusUnderscore() {
+        // '_' is nonstandard but real on some CDNs — dropping it could null the whole plan.
+        assertEquals("https://img_cdn.example.ru", InAppWebViewPrewarmPlanner.httpsOrigin("img_cdn.example.ru"))
+        // Non-ASCII "letters" are never a legit wire-format host (punycode is): reject them
+        // instead of trusting Kotlin's Unicode-wide isLetterOrDigit().
+        assertNull(InAppWebViewPrewarmPlanner.httpsOrigin("https://сайт.рф"))
+        assertNull(InAppWebViewPrewarmPlanner.httpsOrigin("міndbox.ru"))
+    }
+
+    @Test
     fun testHttpsOrigin_rejectsMarkupCharactersInAuthority() {
         // Origins are interpolated into preconnect HTML attributes — a corrupt config
         // value must never be able to become markup.
