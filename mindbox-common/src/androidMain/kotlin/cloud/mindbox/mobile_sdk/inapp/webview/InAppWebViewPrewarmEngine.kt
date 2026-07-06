@@ -60,6 +60,26 @@ public class InAppWebViewPrewarmEngine(
         }
     }
 
+    /**
+     * Evaluates [js] on the prewarm WebView (main looper). Calls back with the raw
+     * `evaluateJavascript` result, or null when there is no WebView (never created,
+     * released, or aborted) — lets the owner poll page state, e.g. network idle.
+     */
+    public fun evaluateJavaScript(js: String, resultCallback: (String?) -> Unit) {
+        mainHandler.post {
+            val view = webView
+            if (view == null || isAborted) {
+                resultCallback(null)
+                return@post
+            }
+            runCatching { view.evaluateJavascript(js) { result -> resultCallback(result) } }
+                .onFailure { error ->
+                    log("evaluateJavaScript failed: $error")
+                    resultCallback(null)
+                }
+        }
+    }
+
     /** Stops and destroys the prewarm WebView; a later prewarm may create a fresh one. */
     public fun release() {
         mainHandler.post {
