@@ -76,7 +76,9 @@ public object InAppWebViewPrewarmPlanner {
         }
         val authority = rest.takeWhile { char -> char != '/' && char != '?' && char != '#' }
         if (authority.isEmpty()) return null
-        if (authority.any { char -> char.isWhitespace() || char == '@' }) return null
+        // Origins get interpolated into preconnect HTML attributes — accept only legal
+        // host[:port] characters so a corrupt config value can never become markup.
+        if (authority.any { char -> !char.isLetterOrDigit() && char != '.' && char != '-' && char != ':' }) return null
         val host = authority.substringBefore(':')
         if (host.isEmpty() || host.none { char -> char.isLetterOrDigit() }) return null
         return "https://" + authority.lowercase()
@@ -91,11 +93,17 @@ public object InAppWebViewPrewarmPlanner {
      * warm. Real shows never get these parameters.
      */
     public fun prewarmContentBaseUrl(baseUrl: String, endpointId: String, deviceUuid: String): String {
-        val separator = if ('?' in baseUrl) '&' else '?'
-        return baseUrl + separator +
+        // The params must land in the QUERY: appended after a '#' they would live in the
+        // fragment, location.search would stay empty and the contract silently degrades.
+        val fragmentStart = baseUrl.indexOf('#')
+        val withoutFragment = if (fragmentStart >= 0) baseUrl.substring(0, fragmentStart) else baseUrl
+        val fragment = if (fragmentStart >= 0) baseUrl.substring(fragmentStart) else ""
+        val separator = if ('?' in withoutFragment) '&' else '?'
+        return withoutFragment + separator +
             "prewarm=1" +
             "&endpointId=" + encodeQueryValue(endpointId) +
-            "&deviceUuid=" + encodeQueryValue(deviceUuid)
+            "&deviceUuid=" + encodeQueryValue(deviceUuid) +
+            fragment
     }
 
     /** RFC 3986 percent-encoding for a query value (unreserved characters pass through). */

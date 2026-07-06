@@ -90,6 +90,10 @@ public class InAppWebViewPrewarmEngine(
                 view.loadUrl("about:blank")
                 view.clearHistory()
                 view.removeAllViews()
+            }.onFailure { error -> log("release cleanup failed: $error") }
+            // Destroy separately: a failure in the cosmetic cleanup above must never leak
+            // the renderer by skipping the one call that actually frees it.
+            runCatching {
                 view.destroy()
                 log("prewarm WebView released")
             }.onFailure { error -> log("release failed: $error") }
