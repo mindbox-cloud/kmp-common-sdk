@@ -78,9 +78,12 @@ public object InAppWebViewPrewarmPlanner {
         if (authority.isEmpty()) return null
         // Origins get interpolated into preconnect HTML attributes — accept only legal
         // host[:port] characters so a corrupt config value can never become markup.
-        if (authority.any { char -> !char.isLetterOrDigit() && char != '.' && char != '-' && char != ':' }) return null
+        // ASCII-only on purpose: hosts travel percent-/punycode-encoded on the wire, so a
+        // non-ASCII "letter" here is never a legit host — but Kotlin's isLetterOrDigit()
+        // would wave any Unicode letter through. '_' is nonstandard yet real on some CDNs.
+        if (authority.any { char -> !char.isHostChar() }) return null
         val host = authority.substringBefore(':')
-        if (host.isEmpty() || host.none { char -> char.isLetterOrDigit() }) return null
+        if (host.isEmpty() || host.none { char -> char.isAsciiLetterOrDigit() }) return null
         return "https://" + authority.lowercase()
     }
 
@@ -105,6 +108,12 @@ public object InAppWebViewPrewarmPlanner {
             "&deviceUuid=" + encodeQueryValue(deviceUuid) +
             fragment
     }
+
+    private fun Char.isAsciiLetterOrDigit(): Boolean =
+        this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9'
+
+    private fun Char.isHostChar(): Boolean =
+        isAsciiLetterOrDigit() || this == '.' || this == '-' || this == ':' || this == '_'
 
     /** RFC 3986 percent-encoding for a query value (unreserved characters pass through). */
     private fun encodeQueryValue(value: String): String = buildString {

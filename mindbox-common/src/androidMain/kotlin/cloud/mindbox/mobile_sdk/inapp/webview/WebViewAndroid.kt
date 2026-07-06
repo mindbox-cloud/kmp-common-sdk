@@ -3,6 +3,8 @@ package cloud.mindbox.mobile_sdk.inapp.webview
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.webkit.*
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
@@ -26,6 +28,12 @@ private class AndroidWebViewController(
 
     private val webView: WebView = WebView(context)
     private var eventListener: WebViewEventListener? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Set on the main looper inside [destroy]; @Volatile only so a post from a background
+    // thread that races the destroy still sees the latch when its block runs.
+    @Volatile
+    private var isDestroyed = false
 
     init {
         WebView.setWebContentsDebuggingEnabled(isDebugEnabled)
@@ -74,8 +82,15 @@ private class AndroidWebViewController(
         eventListener = listener
     }
 
+    // NOT View.post: on a detached view (onClose removes the view from its parent before
+    // calling destroy) View.post lands in the view's HandlerActionQueue, which drains only
+    // on the next attach — queued work, including destroy() itself, would never run and
+    // every closed in-app would leak a live WebView with its page JS still executing.
     override fun executeOnViewThread(action: () -> Unit) {
-        webView.post(action)
+        mainHandler.post {
+            if (isDestroyed) return@post
+            action()
+        }
     }
 
     override fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?) {
@@ -85,12 +100,18 @@ private class AndroidWebViewController(
     }
 
     override fun destroy() {
-        executeOnViewThread{
-            webView.stopLoading()
-            webView.loadUrl("about:blank")
-            webView.clearHistory()
-            webView.removeAllViews()
-            webView.destroy()
+        mainHandler.post {
+            if (isDestroyed) return@post
+            isDestroyed = true
+            runCatching {
+                webView.stopLoading()
+                webView.loadUrl("about:blank")
+                webView.clearHistory()
+                webView.removeAllViews()
+            }
+            // Destroy separately: a failure in the cosmetic cleanup above must never leak
+            // the renderer by skipping the one call that actually frees it.
+            runCatching { webView.destroy() }
         }
     }
 
@@ -130,10 +151,12 @@ private class AndroidWebViewController(
             @Deprecated("Deprecated in Java")
             @Suppress("DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                val isForMainFrame: Boolean = url == view?.originalUrl
+                // The String overload can't tell frames apart (comparing against originalUrl
+                // is false for any NEW url — exactly the navigations the lock must catch).
+                // Treat everything as main-frame so the lock actually holds on API < 24.
                 return eventListener?.onShouldOverrideUrlLoading(
                     url = url,
-                    isForMainFrame = isForMainFrame,
+                    isForMainFrame = true,
                 ) ?: false
             }
 

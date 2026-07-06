@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
 
 /**
@@ -124,10 +126,30 @@ public class InAppWebViewPrewarmEngine(
                         settings.userAgentString = "$currentUserAgent $userAgentSuffix".trim()
                     }
                 }
+                webViewClient = pinnedNavigationClient
             }
         }.onFailure { error -> log("WebView creation failed: $error") }
             .getOrNull()
             ?.also { created -> webView = created }
+    }
+
+    /**
+     * Pins the hidden WebView to the documents the SDK loads itself: any page-initiated
+     * top-frame navigation (JS redirect, meta refresh, a legacy runtime navigating away)
+     * is refused. Without a client, chromium routes such navigations to an external
+     * browsing intent — a hidden prewarm must never be able to pop the user's browser.
+     */
+    private val pinnedNavigationClient = object : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+            log("blocked prewarm navigation to ${request?.url}")
+            return true
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+            log("blocked prewarm navigation to $url")
+            return true
+        }
     }
 
 }
