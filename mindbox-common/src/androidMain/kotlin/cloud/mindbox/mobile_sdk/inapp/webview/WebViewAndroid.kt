@@ -20,6 +20,10 @@ public fun WebViewController.Companion.create(
     return AndroidWebViewController(context, isDebugEnabled)
 }
 
+// Upper bound on waiting for a renderer that never answers an in-flight
+// evaluateJavascript; the drained case destroys as soon as the last callback lands.
+private const val DESTROY_DRAIN_TIMEOUT_MS = 1_000L
+
 @OptIn(InternalMindboxApi::class)
 private class AndroidWebViewController(
     context: android.content.Context,
@@ -30,9 +34,10 @@ private class AndroidWebViewController(
     private var eventListener: WebViewEventListener? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Set on the main looper inside [destroy]; @Volatile only so a post from a background
-    // thread that races the destroy still sees the latch when its block runs.
-    @Volatile
+    // All three main-thread confined: mutated only inside blocks running on [mainHandler]
+    // (posts from background threads run their check on the main looper too).
+    private var pendingEvaluateCallbacks = 0
+    private var isDestroyRequested = false
     private var isDestroyed = false
 
     init {
@@ -88,31 +93,58 @@ private class AndroidWebViewController(
     // every closed in-app would leak a live WebView with its page JS still executing.
     override fun executeOnViewThread(action: () -> Unit) {
         mainHandler.post {
-            if (isDestroyed) return@post
+            if (isDestroyRequested) return@post
             action()
         }
     }
 
     override fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?) {
         executeOnViewThread {
-            webView.evaluateJavascript(js, resultCallback)
+            if (resultCallback == null) {
+                webView.evaluateJavascript(js, null)
+            } else {
+                pendingEvaluateCallbacks++
+                webView.evaluateJavascript(js) { result ->
+                    pendingEvaluateCallbacks--
+                    resultCallback(result)
+                    completeDestroyIfDrained()
+                }
+            }
         }
     }
 
+    /**
+     * Destroy waits for in-flight [evaluateJavaScript] result callbacks by design: the
+     * evaluate call executes before the destroy request (FIFO on the main looper), but its
+     * result comes back from the renderer asynchronously — destroying at once would drop
+     * it (concretely: the learned-hosts capture queued right before close). New work is
+     * refused from here; the timeout only bounds a renderer that never answers.
+     */
     override fun destroy() {
         mainHandler.post {
-            if (isDestroyed) return@post
-            isDestroyed = true
-            runCatching {
-                webView.stopLoading()
-                webView.loadUrl("about:blank")
-                webView.clearHistory()
-                webView.removeAllViews()
-            }
-            // Destroy separately: a failure in the cosmetic cleanup above must never leak
-            // the renderer by skipping the one call that actually frees it.
-            runCatching { webView.destroy() }
+            if (isDestroyRequested) return@post
+            isDestroyRequested = true
+            runCatching { webView.stopLoading() }
+            mainHandler.postDelayed(::completeDestroy, DESTROY_DRAIN_TIMEOUT_MS)
+            completeDestroyIfDrained()
         }
+    }
+
+    private fun completeDestroyIfDrained() {
+        if (isDestroyRequested && pendingEvaluateCallbacks == 0) completeDestroy()
+    }
+
+    private fun completeDestroy() {
+        if (isDestroyed) return
+        isDestroyed = true
+        runCatching {
+            webView.loadUrl("about:blank")
+            webView.clearHistory()
+            webView.removeAllViews()
+        }
+        // Destroy separately: a failure in the cosmetic cleanup above must never leak
+        // the renderer by skipping the one call that actually frees it.
+        runCatching { webView.destroy() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
