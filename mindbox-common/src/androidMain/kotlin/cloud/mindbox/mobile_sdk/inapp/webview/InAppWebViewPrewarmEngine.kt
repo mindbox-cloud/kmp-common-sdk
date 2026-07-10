@@ -23,7 +23,9 @@ import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
 @InternalMindboxApi
 public class InAppWebViewPrewarmEngine(
     private val appContext: Context,
-    private val log: (String) -> Unit = {}
+    private val log: (String) -> Unit = {},
+    // Mirrors MobileSdkShouldCacheInAppWebView; read live (not latched) on every WebView creation.
+    private val isCacheEnabled: () -> Boolean = { true }
 ) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -119,7 +121,7 @@ public class InAppWebViewPrewarmEngine(
             WebView(appContext).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                settings.cacheMode = WebSettings.LOAD_DEFAULT
+                settings.cacheMode = if (isCacheEnabled()) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
                 if (!userAgentSuffix.isNullOrBlank()) {
                     val currentUserAgent: String = settings.userAgentString ?: ""
                     if (!currentUserAgent.contains(userAgentSuffix)) {

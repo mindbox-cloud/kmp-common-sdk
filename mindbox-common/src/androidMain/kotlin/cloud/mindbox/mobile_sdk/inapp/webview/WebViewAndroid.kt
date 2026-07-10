@@ -15,9 +15,11 @@ public actual typealias WebViewPlatformView = View
 @InternalMindboxApi
 public fun WebViewController.Companion.create(
     context: android.content.Context,
-    isDebugEnabled: Boolean
+    isDebugEnabled: Boolean,
+    // Mirrors MobileSdkShouldCacheInAppWebView.
+    isCacheEnabled: Boolean = true
 ): WebViewController {
-    return AndroidWebViewController(context, isDebugEnabled)
+    return AndroidWebViewController(context, isDebugEnabled, isCacheEnabled)
 }
 
 // Upper bound on waiting for a renderer that never answers an in-flight
@@ -27,7 +29,8 @@ private const val DESTROY_DRAIN_TIMEOUT_MS = 1_000L
 @OptIn(InternalMindboxApi::class)
 private class AndroidWebViewController(
     context: android.content.Context,
-    isDebugEnabled: Boolean
+    isDebugEnabled: Boolean,
+    private val isCacheEnabled: Boolean
 ) : WebViewController {
 
     private val webView: WebView = WebView(context)
@@ -157,7 +160,7 @@ private class AndroidWebViewController(
             defaultTextEncodingName = "utf-8"
             // Persistent HTTP cache: in-app resources are revalidated/served per the CDN's
             // cache headers instead of being re-downloaded on every show.
-            cacheMode = WebSettings.LOAD_DEFAULT
+            cacheMode = if (isCacheEnabled) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
             allowContentAccess = true
         }
         webView.setBackgroundColor(Color.TRANSPARENT)
