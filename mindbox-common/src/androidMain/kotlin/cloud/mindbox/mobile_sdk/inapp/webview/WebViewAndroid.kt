@@ -50,7 +50,6 @@ private class AndroidWebViewController(
         get() = webView
 
     override fun loadContent(content: WebViewHtmlContent) {
-        if (MindboxWebViewLab.PROFILER) MbWvProfiler.begin() // MEASUREMENT (throwaway): t0
         webView.loadDataWithBaseURL(
             content.baseUrl,
             content.html,
@@ -162,9 +161,6 @@ private class AndroidWebViewController(
             allowContentAccess = true
         }
         webView.setBackgroundColor(Color.TRANSPARENT)
-        if (MindboxWebViewLab.PROFILER) {
-            webView.addJavascriptInterface(MbProfilerBridge(), "MBProfiler") // MEASUREMENT (throwaway)
-        }
     }
 
     private fun createWebViewClient(): WebViewClient {
@@ -233,10 +229,6 @@ private class AndroidWebViewController(
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
-                if (MindboxWebViewLab.PROFILER) {
-                    MbWvProfiler.mark("navFinish") // MEASUREMENT (throwaway)
-                    view?.evaluateJavascript(MbWvProfiler.probeJs, null)
-                }
                 eventListener?.onPageFinished(url)
             }
         }
