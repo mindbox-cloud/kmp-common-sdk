@@ -16,11 +16,9 @@ public actual typealias WebViewPlatformView = View
 public fun WebViewController.Companion.create(
     context: android.content.Context,
     isDebugEnabled: Boolean,
-    // Mirrors MobileSdkShouldCacheInAppWebView.
-    isCacheEnabled: Boolean = true
-): WebViewController {
-    return AndroidWebViewController(context, isDebugEnabled, isCacheEnabled)
-}
+    isCacheEnabled: Boolean,
+    log: (String) -> Unit = {}
+): WebViewController = AndroidWebViewController(context, isDebugEnabled, isCacheEnabled, log)
 
 // Upper bound on waiting for a renderer that never answers an in-flight
 // evaluateJavascript; the drained case destroys as soon as the last callback lands.
@@ -30,7 +28,8 @@ private const val DESTROY_DRAIN_TIMEOUT_MS = 1_000L
 private class AndroidWebViewController(
     context: android.content.Context,
     isDebugEnabled: Boolean,
-    private val isCacheEnabled: Boolean
+    private val isCacheEnabled: Boolean,
+    private val log: (String) -> Unit
 ) : WebViewController {
 
     private val webView: WebView = WebView(context)
@@ -38,8 +37,10 @@ private class AndroidWebViewController(
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // All three main-thread confined: mutated only inside blocks running on [mainHandler]
-    // (posts from background threads run their check on the main looper too).
-    private var pendingEvaluateCallbacks = 0
+    // (posts from background threads run their check on the main looper too). Callbacks,
+    // not a count: a hung renderer never invokes its ValueCallback, so completeDestroy()
+    // needs the actual callbacks to force-complete with null, not just how many are pending.
+    private val pendingEvaluateCallbacks = mutableListOf<(String?) -> Unit>()
     private var isDestroyRequested = false
     private var isDestroyed = false
 
@@ -53,13 +54,15 @@ private class AndroidWebViewController(
         get() = webView
 
     override fun loadContent(content: WebViewHtmlContent) {
-        webView.loadDataWithBaseURL(
-            content.baseUrl,
-            content.html,
-            "text/html",
-            "UTF-8",
-            null
-        )
+        executeOnViewThread {
+            webView.loadDataWithBaseURL(
+                content.baseUrl,
+                content.html,
+                "text/html",
+                "UTF-8",
+                null
+            )
+        }
     }
 
     override fun setVisibility(isVisible: Boolean) {
@@ -101,14 +104,22 @@ private class AndroidWebViewController(
     }
 
     override fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?) {
-        executeOnViewThread {
+        mainHandler.post {
+            if (isDestroyRequested) {
+                resultCallback?.invoke(null)
+                return@post
+            }
             if (resultCallback == null) {
                 webView.evaluateJavascript(js, null)
             } else {
-                pendingEvaluateCallbacks++
+                pendingEvaluateCallbacks.add(resultCallback)
                 webView.evaluateJavascript(js) { result ->
-                    pendingEvaluateCallbacks--
-                    resultCallback(result)
+                    // remove() returns false if completeDestroy() already force-completed
+                    // this one with null on the drain timeout — a late real answer from a
+                    // renderer that was merely slow, not hung, must not fire it twice.
+                    if (pendingEvaluateCallbacks.remove(resultCallback)) {
+                        resultCallback(result)
+                    }
                     completeDestroyIfDrained()
                 }
             }
@@ -133,12 +144,17 @@ private class AndroidWebViewController(
     }
 
     private fun completeDestroyIfDrained() {
-        if (isDestroyRequested && pendingEvaluateCallbacks == 0) completeDestroy()
+        if (isDestroyRequested && pendingEvaluateCallbacks.isEmpty()) completeDestroy()
     }
 
     private fun completeDestroy() {
         if (isDestroyed) return
         isDestroyed = true
+        // The drain timeout can win with callbacks still outstanding — a hung renderer
+        // never calls its ValueCallback. Force them to null rather than abandon them: the
+        // evaluateJavaScript contract is "always fires", not "usually fires."
+        pendingEvaluateCallbacks.toList().forEach { callback -> callback(null) }
+        pendingEvaluateCallbacks.clear()
         runCatching {
             webView.loadUrl("about:blank")
             webView.clearHistory()
@@ -160,7 +176,8 @@ private class AndroidWebViewController(
             defaultTextEncodingName = "utf-8"
             // Persistent HTTP cache: in-app resources are revalidated/served per the CDN's
             // cache headers instead of being re-downloaded on every show.
-            cacheMode = if (isCacheEnabled) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
+            cacheMode = webViewCacheMode(isCacheEnabled)
+            log("cache ${if (isCacheEnabled) "ON" else "OFF"} (cacheMode=$cacheMode)")
             allowContentAccess = true
         }
         webView.setBackgroundColor(Color.TRANSPARENT)
@@ -172,12 +189,10 @@ private class AndroidWebViewController(
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
-            ): Boolean {
-                return eventListener?.onShouldOverrideUrlLoading(
-                    url = request?.url?.toString(),
-                    isForMainFrame = request?.isForMainFrame,
-                ) ?: false
-            }
+            ): Boolean = eventListener?.onShouldOverrideUrlLoading(
+                url = request?.url?.toString(),
+                isForMainFrame = request?.isForMainFrame,
+            ) ?: false
 
             @Deprecated("Deprecated in Java")
             @Suppress("DEPRECATION")
@@ -246,4 +261,3 @@ private class AndroidWebViewController(
         }
     }
 }
-

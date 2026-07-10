@@ -5,10 +5,10 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Platform actuator for the in-app WebView prewarm: owns one hidden [WebView] that
@@ -24,8 +24,7 @@ import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
 public class InAppWebViewPrewarmEngine(
     private val appContext: Context,
     private val log: (String) -> Unit = {},
-    // Mirrors MobileSdkShouldCacheInAppWebView; read live (not latched) on every WebView creation.
-    private val isCacheEnabled: () -> Boolean = { true }
+    private val isCacheEnabled: () -> Boolean
 ) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -37,11 +36,20 @@ public class InAppWebViewPrewarmEngine(
     @Volatile
     private var isAborted = false
 
+    // Bumped by every [release] (including via [abort]). release() alone doesn't set
+    // isAborted, so it isn't a terminal gate on its own — a loadPreconnectPage/loadContentPage
+    // call already posted (or racing concurrently) before a release could otherwise still run
+    // ensureWebView() afterwards and resurrect a WebView nothing will ever clean up again.
+    // Each load captures the generation at call time and ensureWebView() rejects it if a
+    // release has bumped the counter since, however this task got interleaved with that release.
+    private val generation = AtomicInteger(0)
+
     /** Loads the preconnect page under [baseUrl] (the show's cache partition). */
     public fun loadPreconnectPage(html: String, baseUrl: String, userAgentSuffix: String?) {
+        val requestedGeneration = generation.get()
         mainHandler.post {
             runCatching {
-                val view = ensureWebView(userAgentSuffix) ?: return@post
+                val view = ensureWebView(userAgentSuffix, requestedGeneration) ?: return@post
                 view.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
                 log("preconnect page loaded under $baseUrl")
             }.onFailure { error -> log("preconnect page failed: $error") }
@@ -55,9 +63,10 @@ public class InAppWebViewPrewarmEngine(
      * degrades to a plain page warm. Nothing reaches the SDK either way.
      */
     public fun loadContentPage(html: String, baseUrl: String, userAgentSuffix: String?) {
+        val requestedGeneration = generation.get()
         mainHandler.post {
             runCatching {
-                val view = ensureWebView(userAgentSuffix) ?: return@post
+                val view = ensureWebView(userAgentSuffix, requestedGeneration) ?: return@post
                 view.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
                 log("content page loaded under $baseUrl")
             }.onFailure { error -> log("content page failed: $error") }
@@ -86,6 +95,10 @@ public class InAppWebViewPrewarmEngine(
 
     /** Stops and destroys the prewarm WebView; a later prewarm may create a fresh one. */
     public fun release() {
+        // Bumped synchronously, BEFORE the cleanup is posted — same reasoning as isAborted
+        // in abort(): a load already posted (or racing this call) must see the new generation
+        // by the time it runs, however the two tasks end up interleaved on the main looper.
+        generation.incrementAndGet()
         mainHandler.post {
             val view = webView ?: return@post
             webView = null
@@ -114,14 +127,16 @@ public class InAppWebViewPrewarmEngine(
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun ensureWebView(userAgentSuffix: String?): WebView? {
-        if (isAborted) return null
+    private fun ensureWebView(userAgentSuffix: String?, requestedGeneration: Int): WebView? {
+        if (isAborted || requestedGeneration != generation.get()) return null
         webView?.let { return it }
         return runCatching {
             WebView(appContext).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                settings.cacheMode = if (isCacheEnabled()) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
+                val cacheEnabled = isCacheEnabled()
+                settings.cacheMode = webViewCacheMode(cacheEnabled)
+                log("cache ${if (cacheEnabled) "ON" else "OFF"} (cacheMode=${settings.cacheMode})")
                 if (!userAgentSuffix.isNullOrBlank()) {
                     val currentUserAgent: String = settings.userAgentString ?: ""
                     if (!currentUserAgent.contains(userAgentSuffix)) {
@@ -153,5 +168,4 @@ public class InAppWebViewPrewarmEngine(
             return true
         }
     }
-
 }
