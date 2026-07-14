@@ -11,4 +11,3 @@ package cloud.mindbox.mobile_sdk.annotations
     level = RequiresOptIn.Level.WARNING
 )
 public annotation class InternalMindboxApi
-

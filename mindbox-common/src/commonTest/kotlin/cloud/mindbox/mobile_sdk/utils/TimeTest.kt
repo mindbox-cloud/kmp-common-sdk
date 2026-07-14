@@ -9,5 +9,4 @@ class TimeTest {
         val nanoTime = getSystemNanoTime()
         assertTrue(nanoTime > 0)
     }
-
 }

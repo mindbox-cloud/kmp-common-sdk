@@ -51,6 +51,12 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
+        getByName("androidUnitTest") {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.junit)
+            }
+        }
     }
 }
 

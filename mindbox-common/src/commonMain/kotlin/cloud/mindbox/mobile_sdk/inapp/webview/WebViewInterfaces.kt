@@ -51,6 +51,12 @@ public interface WebViewController {
 
     public fun executeOnViewThread(action: () -> Unit)
 
+    /**
+     * [resultCallback], if non-null, always fires exactly once — with the raw evaluate
+     * result, or `null` when the call can't reach a live WebView (e.g. destroy already
+     * requested). Callers waiting on this callback (deferred results, readiness polling)
+     * must not be left hanging just because the view is mid-teardown.
+     */
     public fun evaluateJavaScript(js: String, resultCallback: ((String?) -> Unit)?)
 
     public fun destroy()
