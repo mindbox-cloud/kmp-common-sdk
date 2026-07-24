@@ -92,6 +92,14 @@ private class AndroidWebViewController(
         eventListener = listener
     }
 
+    override fun setCacheBypass(isBypassEnabled: Boolean) {
+        executeOnViewThread {
+            webView.settings.cacheMode =
+                if (isBypassEnabled) WebSettings.LOAD_NO_CACHE else webViewCacheMode(isCacheEnabled)
+            log("cache bypass ${if (isBypassEnabled) "ON" else "OFF"} (cacheMode=${webView.settings.cacheMode})")
+        }
+    }
+
     // NOT View.post: on a detached view (onClose removes the view from its parent before
     // calling destroy) View.post lands in the view's HandlerActionQueue, which drains only
     // on the next attach — queued work, including destroy() itself, would never run and
@@ -244,6 +252,18 @@ private class AndroidWebViewController(
                     isForMainFrame = failingUrl == view?.originalUrl
                 )
                 eventListener?.onError(webViewError)
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                errorResponse: WebResourceResponse?
+            ) {
+                eventListener?.onHttpError(
+                    url = request?.url?.toString(),
+                    statusCode = errorResponse?.statusCode,
+                    isForMainFrame = request?.isForMainFrame
+                )
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
