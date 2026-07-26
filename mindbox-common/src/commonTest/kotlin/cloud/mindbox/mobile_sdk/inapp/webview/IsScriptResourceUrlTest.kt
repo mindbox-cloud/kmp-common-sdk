@@ -29,8 +29,10 @@ class IsScriptResourceUrlTest {
         // ".js" only in the query/fragment, not in the path
         assertFalse(isScriptResourceUrl("https://cdn.test/page?file=tracker.js"))
         assertFalse(isScriptResourceUrl("https://cdn.test/page#tracker.js"))
-        // path merely containing ".js" without ending on it
+        // path contains ".js" but the extension differs — must not match
         assertFalse(isScriptResourceUrl("https://cdn.test/tracker.json"))
+        // path contains ".js" mid-name but ends with another extension (source map)
+        assertFalse(isScriptResourceUrl("https://cdn.test/tracker.js.map"))
     }
 
     @Test
