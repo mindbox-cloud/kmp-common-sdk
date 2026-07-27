@@ -33,7 +33,38 @@ public interface WebViewEventListener {
 
     public fun onError(error: WebViewError) {
     }
+
+    public fun onHttpError(url: String?, statusCode: Int?, isForMainFrame: Boolean?) {
+    }
 }
+
+@InternalMindboxApi
+public fun isScriptResourceUrl(url: String?): Boolean {
+    val raw = url?.trim().orEmpty()
+    if (raw.isEmpty()) return false
+    val path = raw
+        .substringBefore('#')
+        .substringBefore('?')
+    return path.endsWith(".js", ignoreCase = true)
+}
+
+/** Lower bound of HTTP statuses treated as errors for the no-cache recovery path. */
+@InternalMindboxApi
+public const val HTTP_ERROR_MIN_STATUS: Int = 400
+
+/**
+ * True when an HTTP error on a page subresource is the kind the no-cache reload can recover:
+ * an error status ([HTTP_ERROR_MIN_STATUS]+) on a script resource ([isScriptResourceUrl]).
+ * A cached error on a bootstrap script poisons the page; a broken image or stats beacon can't
+ * stop the runtime from booting, so reloading over it would be a regression.
+ *
+ * The single source of truth shared by both recovery paths — the prewarm engine
+ * (`InAppWebViewPrewarmEngine`) and the show-path policy (`WebViewNoCacheRetryPolicy`) — which
+ * layer their own path-specific state (init guard / telemetry vs. generation / abort) on top.
+ */
+@InternalMindboxApi
+public fun isRecoverableScriptHttpError(url: String?, statusCode: Int?): Boolean =
+    statusCode != null && statusCode >= HTTP_ERROR_MIN_STATUS && isScriptResourceUrl(url)
 
 @InternalMindboxApi
 public interface WebViewController {
@@ -48,6 +79,9 @@ public interface WebViewController {
     public fun setJsBridge(bridge: WebViewJsBridge, bridgeName: String = DEFAULT_WEBVIEW_BRIDGE_NAME)
 
     public fun setEventListener(listener: WebViewEventListener?)
+
+    public fun setCacheBypass(isBypassEnabled: Boolean) {
+    }
 
     public fun executeOnViewThread(action: () -> Unit)
 

@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
@@ -29,6 +31,27 @@ public class InAppWebViewPrewarmEngine(
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
+
+    // Main-thread confined (written in posted blocks / client callbacks on the main looper).
+    // The last content page is retained so a poisoned-cache HTTP error can be answered by
+    // reloading the exact same page with the cache bypassed; one retry per content load.
+    // Cleared in [release] — the engine is process-lived, so a settled prewarm must not
+    // keep the page HTML reachable for the rest of the process.
+    private var lastContentPage: ContentPage? = null
+    private var hasRetriedWithoutCache = false
+
+    /**
+     * Invoked (on the main looper) when the no-cache recovery reload actually starts —
+     * lets the owner restart its settle budget so the healing load is not cut short by
+     * a budget the original load already spent.
+     */
+    public var onNoCacheRetryStarted: (() -> Unit)? = null
+
+    private data class ContentPage(
+        val html: String,
+        val baseUrl: String,
+        val generation: Int
+    )
 
     // Set synchronously in [abort] — BEFORE the release is posted — so a load block that was
     // already posted from a background thread can never resurrect the WebView after a real
@@ -61,16 +84,47 @@ public class InAppWebViewPrewarmEngine(
      * params): a runtime that knows the contract boots tracker-only and pulls byendpoint
      * into the shared HTTP cache; an older runtime ignores the params and the load
      * degrades to a plain page warm. Nothing reaches the SDK either way.
+     *
+     * When the cache feature is on ([isCacheEnabled] — the same latched decision this
+     * WebView's cache mode was created with), a 4xx/5xx on a script subresource (a cached
+     * error response poisoning the page) triggers ONE reload of the same page with the
+     * cache bypassed — the fresh responses overwrite the poisoned entries, healing the
+     * cache before any real show needs it. With the cache off nothing can be poisoned and
+     * a reload would repeat the exact failed request, so the page is not retained at all.
      */
-    public fun loadContentPage(html: String, baseUrl: String, userAgentSuffix: String?) {
+    public fun loadContentPage(
+        html: String,
+        baseUrl: String,
+        userAgentSuffix: String?
+    ) {
         val requestedGeneration = generation.get()
         mainHandler.post {
             runCatching {
                 val view = ensureWebView(userAgentSuffix, requestedGeneration) ?: return@post
+                lastContentPage = if (isCacheEnabled()) ContentPage(html, baseUrl, requestedGeneration) else null
+                hasRetriedWithoutCache = false
                 view.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
                 log("content page loaded under $baseUrl")
             }.onFailure { error -> log("content page failed: $error") }
         }
+    }
+
+    /**
+     * One-shot recovery from a poisoned HTTP cache: reload the retained content page with
+     * the cache bypassed. Runs on the main looper (WebViewClient callbacks land there).
+     */
+    private fun retryContentPageWithoutCache(failedUrl: String?, statusCode: Int) {
+        if (hasRetriedWithoutCache || isAborted) return
+        val view = webView ?: return
+        val page = lastContentPage ?: return
+        if (page.generation != generation.get()) return
+        hasRetriedWithoutCache = true
+        runCatching {
+            view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+            view.loadDataWithBaseURL(page.baseUrl, page.html, "text/html", "UTF-8", null)
+            log("HTTP $statusCode for $failedUrl — reloading content page without cache")
+            onNoCacheRetryStarted?.invoke()
+        }.onFailure { error -> log("no-cache retry failed: $error") }
     }
 
     /**
@@ -100,6 +154,8 @@ public class InAppWebViewPrewarmEngine(
         // by the time it runs, however the two tasks end up interleaved on the main looper.
         generation.incrementAndGet()
         mainHandler.post {
+            lastContentPage = null
+            hasRetriedWithoutCache = false
             val view = webView ?: return@post
             webView = null
             runCatching {
@@ -166,6 +222,18 @@ public class InAppWebViewPrewarmEngine(
         override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
             log("blocked prewarm navigation to $url")
             return true
+        }
+
+        override fun onReceivedHttpError(
+            view: WebView?,
+            request: WebResourceRequest?,
+            errorResponse: WebResourceResponse?
+        ) {
+            val statusCode = errorResponse?.statusCode ?: return
+            val url = request?.url?.toString()
+            if (!isRecoverableScriptHttpError(url, statusCode)) return
+            log("HTTP $statusCode for script $url during prewarm")
+            retryContentPageWithoutCache(failedUrl = url, statusCode = statusCode)
         }
     }
 }

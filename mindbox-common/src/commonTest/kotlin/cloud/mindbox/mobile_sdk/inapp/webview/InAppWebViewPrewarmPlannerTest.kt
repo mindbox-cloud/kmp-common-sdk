@@ -24,7 +24,7 @@ class InAppWebViewPrewarmPlannerTest {
 
     @Test
     fun testHttpsOrigin_bareHostLowercased() {
-        assertEquals("https://api.mindbox.ru", InAppWebViewPrewarmPlanner.httpsOrigin("API.Mindbox.ru"))
+        assertEquals("https://api.example.com", InAppWebViewPrewarmPlanner.httpsOrigin("API.Example.com"))
     }
 
     @Test
@@ -52,7 +52,7 @@ class InAppWebViewPrewarmPlannerTest {
                 layer,
                 layer.copy(contentUrl = "https://other-static.mindbox.ru/b.html")
             ),
-            extraOrigins = listOf("api.mindbox.ru", "https://web-static.mindbox.ru", "api.mindbox.ru")
+            extraOrigins = listOf("api.example.com", "https://web-static.mindbox.ru", "api.example.com")
         )
 
         assertNotNull(plan)
@@ -60,7 +60,7 @@ class InAppWebViewPrewarmPlannerTest {
         assertEquals("https://mobile-static.mindbox.ru/stable/inapps/webview/content/index.html", plan.contentUrl)
         assertEquals(
             listOf(
-                "https://api.mindbox.ru",
+                "https://api.example.com",
                 "https://mobile-static.mindbox.ru",
                 "https://other-static.mindbox.ru",
                 "https://web-static.mindbox.ru"
@@ -77,7 +77,7 @@ class InAppWebViewPrewarmPlannerTest {
                 InAppWebViewPrewarmLayer(baseUrl = null, contentUrl = null),
                 InAppWebViewPrewarmLayer(baseUrl = "http://insecure.ru", contentUrl = "https://ok.ru/x")
             ),
-            extraOrigins = listOf("api.mindbox.ru")
+            extraOrigins = listOf("api.example.com")
         )
 
         assertNull(plan)
