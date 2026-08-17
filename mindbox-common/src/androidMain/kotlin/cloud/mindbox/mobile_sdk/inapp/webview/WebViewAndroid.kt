@@ -1,11 +1,13 @@
 package cloud.mindbox.mobile_sdk.inapp.webview
 
 import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.graphics.Color
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.*
 import cloud.mindbox.mobile_sdk.annotations.InternalMindboxApi
 
@@ -191,16 +193,32 @@ private class AndroidWebViewController(
         webView.setBackgroundColor(Color.TRANSPARENT)
     }
 
+    // Chromium invokes the client callbacks directly: a crash inside the owner's listener
+    // would otherwise travel into the WebView framework and take the host app down. Failures
+    // are logged and contained; the navigation dispatch defaults to true — "handled, do not
+    // navigate" is the safe answer for both the overlay lock and the embedded block.
+    private fun dispatchListener(block: () -> Unit) {
+        runCatching(block).onFailure { error -> log("WebView event listener crashed: $error") }
+    }
+
+    private fun dispatchNavigationLock(block: () -> Boolean?): Boolean =
+        runCatching { block() ?: false }.getOrElse { error ->
+            log("WebView navigation listener crashed, blocking the navigation: $error")
+            true
+        }
+
     private fun createWebViewClient(): WebViewClient {
         return object : WebViewClient() {
 
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
-            ): Boolean = eventListener?.onShouldOverrideUrlLoading(
-                url = request?.url?.toString(),
-                isForMainFrame = request?.isForMainFrame,
-            ) ?: false
+            ): Boolean = dispatchNavigationLock {
+                eventListener?.onShouldOverrideUrlLoading(
+                    url = request?.url?.toString(),
+                    isForMainFrame = request?.isForMainFrame,
+                )
+            }
 
             @Deprecated("Deprecated in Java")
             @Suppress("DEPRECATION")
@@ -208,10 +226,12 @@ private class AndroidWebViewController(
                 // The String overload can't tell frames apart (comparing against originalUrl
                 // is false for any NEW url — exactly the navigations the lock must catch).
                 // Treat everything as main-frame so the lock actually holds on API < 24.
-                return eventListener?.onShouldOverrideUrlLoading(
-                    url = url,
-                    isForMainFrame = true,
-                ) ?: false
+                return dispatchNavigationLock {
+                    eventListener?.onShouldOverrideUrlLoading(
+                        url = url,
+                        isForMainFrame = true,
+                    )
+                }
             }
 
             override fun onReceivedError(
@@ -234,7 +254,7 @@ private class AndroidWebViewController(
                         isForMainFrame = request?.isForMainFrame
                     )
                 }
-                eventListener?.onError(webViewError)
+                dispatchListener { eventListener?.onError(webViewError) }
             }
 
             @Deprecated("Deprecated in Java")
@@ -251,7 +271,7 @@ private class AndroidWebViewController(
                     url = failingUrl,
                     isForMainFrame = failingUrl == view?.originalUrl
                 )
-                eventListener?.onError(webViewError)
+                dispatchListener { eventListener?.onError(webViewError) }
             }
 
             override fun onReceivedHttpError(
@@ -259,15 +279,47 @@ private class AndroidWebViewController(
                 request: WebResourceRequest?,
                 errorResponse: WebResourceResponse?
             ) {
-                eventListener?.onHttpError(
-                    url = request?.url?.toString(),
-                    statusCode = errorResponse?.statusCode,
-                    isForMainFrame = request?.isForMainFrame
-                )
+                dispatchListener {
+                    eventListener?.onHttpError(
+                        url = request?.url?.toString(),
+                        statusCode = errorResponse?.statusCode,
+                        isForMainFrame = request?.isForMainFrame
+                    )
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
-                eventListener?.onPageFinished(url)
+                dispatchListener { eventListener?.onPageFinished(url) }
+            }
+
+            // The callback (and RenderProcessGoneDetail) exists since API 26 only — the
+            // framework never invokes it below O, where the renderer shares the app process
+            // and its death is the app crash itself. TargetApi is truthful, not a suppression.
+            @TargetApi(Build.VERSION_CODES.O)
+            override fun onRenderProcessGone(
+                view: WebView?,
+                detail: RenderProcessGoneDetail?
+            ): Boolean {
+                // Returning false here lets the framework kill the HOST app's process — a real
+                // hazard for long-lived embedded blocks whose backgrounded renderer the system
+                // is free to reclaim. Consume the event, drop the dead view and let the owner
+                // react through the ordinary main-frame error path (overlay closes, block fails).
+                log("WebView render process gone (didCrash=${detail?.didCrash()})")
+                dispatchListener {
+                    eventListener?.onError(
+                        WebViewError(
+                            code = null,
+                            description = "render_process_gone",
+                            url = null,
+                            isForMainFrame = true,
+                        )
+                    )
+                }
+                runCatching {
+                    (view?.parent as? ViewGroup)?.removeView(view)
+                    view?.destroy()
+                }
+                return true
             }
         }
     }
