@@ -62,7 +62,7 @@ kotlin {
 
 android {
     namespace = "cloud.mindbox.common"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         minSdk = 21
         consumerProguardFiles("consumer-rules.pro")
