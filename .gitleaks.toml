@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Google Play SDK Console ownership tokens are public by design: Google requires them inside the published AAR"
+paths = ['''(^|/)src/androidMain/resources/META-INF/cloud/mindbox/[^/]+/verification\.properties$''']
