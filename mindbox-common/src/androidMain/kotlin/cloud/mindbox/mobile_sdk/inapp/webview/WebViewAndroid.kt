@@ -239,21 +239,12 @@ private class AndroidWebViewController(
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                val webViewError: WebViewError = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    WebViewError(
-                        code = error?.errorCode,
-                        description = error?.description?.toString(),
-                        url = request?.url?.toString(),
-                        isForMainFrame = request?.isForMainFrame
-                    )
-                } else {
-                    WebViewError(
-                        code = null,
-                        description = null,
-                        url = request?.url?.toString(),
-                        isForMainFrame = request?.isForMainFrame
-                    )
-                }
+                val webViewError = WebViewError(
+                    code = error?.errorCode,
+                    description = error?.description?.toString(),
+                    url = request?.url?.toString(),
+                    isForMainFrame = request?.isForMainFrame
+                )
                 dispatchListener { eventListener?.onError(webViewError) }
             }
 
